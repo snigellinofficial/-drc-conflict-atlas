@@ -97,7 +97,7 @@
         <div class="ph-left"><span class="ph-icon">&#9776;</span><span class="ph-title">筛选器 / Filters</span></div>
         <span class="ph-arrow">&#9660;</span>
       </div>
-      <div class="panel-body" id="filterBody" style="max-height:800px;">
+      <div class="panel-body" id="filterBody" style="max-height:0px;">
         <div class="filter-wrap">
           <div class="filter-row-header">
             <span class="filter-label">冲突类型 / Type</span>
@@ -140,7 +140,7 @@
         <div class="ph-left"><span class="ph-icon">&#9776;</span><span class="ph-title">冲突事件列表 / Events</span></div>
         <span class="ph-arrow">&#9660;</span>
       </div>
-      <div class="panel-body" id="eventListWrap" style="max-height:400px;">
+      <div class="panel-body" id="eventListWrap" style="max-height:0px;">
         <div class="evt-controls">
           <select id="evtSort" onchange="updateEventList()">
             <option value="date-desc">最新优先</option>
@@ -166,7 +166,7 @@
         <div class="ph-left"><span class="ph-icon">&#9728;</span><span class="ph-title">时间轴 / Timeline</span></div>
         <span class="ph-arrow">&#9660;</span>
       </div>
-      <div class="panel-body" id="tlBody" style="max-height:300px;">
+      <div class="panel-body" id="tlBody" style="max-height:0px;">
         <div class="evt-controls" style="padding-bottom:0;">
           <select id="tlSort" onchange="updateTimeline()">
             <option value="date-desc">最新优先</option>
@@ -185,7 +185,7 @@
         <div class="ph-left"><span class="ph-icon">&#9998;</span><span class="ph-title">更新日志 / Update Log</span></div>
         <span class="ph-arrow">&#9660;</span>
       </div>
-      <div class="panel-body" id="logBody" style="max-height:250px;">
+      <div class="panel-body" id="logBody" style="max-height:0px;">
         <div id="logContent" style="padding:4px 0;">
           <div class="log-entry"><span class="log-date">加载中...</span></div>
         </div>
@@ -195,7 +195,7 @@
     <!-- 6. 周报 -->
     <div class="panel-section">
       <div class="panel-header" onclick="generateWeeklyReport()" style="cursor:pointer;">
-        <div class="ph-left"><span class="ph-icon">&#9783;</span><span class="ph-title">周报 / Weekly Report</span></div>
+        <div class="ph-left"><span class="ph-icon">&#9783;</span><span class="ph-title">月度报告 / Monthly Report</span></div>
         <span style="font-size:9.5px;color:var(--accent);font-family:var(--en);">点击生成 &rarr;</span>
       </div>
     </div>
@@ -206,7 +206,7 @@
         <div class="ph-left"><span class="ph-icon">&#9740;</span><span class="ph-title">快速报告 / Quick Report</span></div>
         <span class="ph-arrow">&#9660;</span>
       </div>
-      <div class="panel-body" id="qrBody" style="max-height:500px;">
+      <div class="panel-body" id="qrBody" style="max-height:0px;">
         <div class="qr-wrap">
           <textarea id="qrInput" placeholder="输入冲突或组织关键词，例如：M23、伊图里、CODECO、Goma...&#10;系统将自动匹配并提供选项，亦可使用全库搜索。"></textarea>
           <div class="qr-options" id="qrOptions">

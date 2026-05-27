@@ -260,6 +260,16 @@ header::after{
 /* Small utility buttons */
 .chip.small-btn{font-size:10px;padding:3px 8px;}
 .chip.action-btn{border-style:dashed;}
+.filter-row-header a{
+  display:inline-block;padding:2px 8px;margin:0 1px;
+  border:1px solid var(--border2);border-radius:2px;
+  background:var(--bg2);font-size:9px;font-weight:600;
+  transition:all .15s;text-decoration:none !important;
+}
+.filter-row-header a:hover{
+  background:var(--ink);color:var(--white) !important;
+  border-color:var(--ink);
+}
 
 /* Actor search */
 .actor-search{
@@ -520,6 +530,15 @@ header::after{
   font-family:var(--en);font-size:8px;font-style:italic;
   color:var(--ink3);
   text-shadow:0 0 3px rgba(255,255,255,.8);
+}
+
+/* City labels — visible at zoom >= 9 */
+.city-label-wrap{background:none !important;border:none !important;}
+.city-label{
+  text-align:center;font-family:var(--zh);font-size:9.5px;font-weight:600;
+  color:var(--ink2);letter-spacing:.03em;
+  text-shadow:0 0 2px rgba(255,255,255,.9),0 0 5px rgba(255,255,255,.7);
+  pointer-events:none;
 }
 
 .province-tooltip{

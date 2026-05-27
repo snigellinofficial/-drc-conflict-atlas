@@ -53,12 +53,18 @@ function initMap(){
   });
   map.addLayer(markerCluster);
 
+  // Scale bar
+  L.control.scale({
+    metric:true, imperial:false, maxWidth:180, position:'bottomright',
+    updateWhenIdle:true
+  }).addTo(map);
+
   loadProvinceLayer();
   buildMapLegend();
   initTimeSlider();
 
-  // Update time-display province fills on zoom/move
   map.on("zoomend", updateLabelVisibility);
+  map.on("zoomend", updateCityVisibility);
   map.on("zoomend", refreshProvinceStyles);
 }
 
@@ -120,11 +126,7 @@ async function loadProvinceLayer(){
     provinceLabelsGroup.addTo(map);
     updateLabelVisibility();
 
-    showToast("DRC 26省行政区划已加载 — 点击省份互动");
-
-    var hint=L.divIcon({className:"map-hint",html:'<div style="text-align:center;">点击任意省份<br>查看冲突详情</div>',iconSize:[160,44],iconAnchor:[80,22]});
-    var hintMarker=L.marker([-4.5,24.5],{icon:hint,interactive:false}).addTo(map);
-    setTimeout(function(){map.removeLayer(hintMarker);},5000);
+    showToast("DRC 26省行政区划已加载");
   }catch(e){
     console.warn("Province layer not loaded:",e.message);
     showToast("省级地图加载失败，请检查网络连接");
@@ -155,34 +157,65 @@ function refreshProvinceStyles(){
 
 // ===================== ZOOM-DEPENDENT LABELS =====================
 
+var cityLabelsGroup=L.layerGroup();
+cityLabelsGroup.addTo(map);
+
 function updateLabelVisibility(){
   provinceLabelsGroup.clearLayers();
   var zoom=map.getZoom();
 
-  // Show labels at zoom >= 9 (~1:140,000 scale, exceeds 1:200,000 requirement)
-  if(zoom<9||!provinceData)return;
+  // Province labels at zoom >= 8 (~1:500,000 scale)
+  if(zoom>=8&&provinceData){
+    provinceData.features.forEach(function(feat){
+      var name=feat.properties.name;
+      var pInfo=DRC_PROVINCES[name];
+      if(!pInfo)return;
+      try{
+        var geoLayer=L.geoJSON(feat);
+        var center=geoLayer.getBounds().getCenter();
+        var bounds=geoLayer.getBounds();
+        var area=(bounds.getEast()-bounds.getWest())*(bounds.getNorth()-bounds.getSouth());
+        if(area>0.02){
+          L.marker(center,{
+            icon:L.divIcon({
+              className:"province-label-wrap",
+              html:'<div class="province-label-inner"><span class="province-label">'+pInfo.zh+'</span><br><span class="province-label-en">'+pInfo.en+'</span></div>',
+              iconSize:[120,24],
+              iconAnchor:[60,12]
+            }),
+            interactive:false
+          }).addTo(provinceLabelsGroup);
+        }
+      }catch(e){}
+    });
+  }
+}
 
-  provinceData.features.forEach(function(feat){
-    var name=feat.properties.name;
-    var pInfo=DRC_PROVINCES[name];
-    if(!pInfo)return;
-    try{
-      var geoLayer=L.geoJSON(feat);
-      var center=geoLayer.getBounds().getCenter();
-      var bounds=geoLayer.getBounds();
-      var area=(bounds.getEast()-bounds.getWest())*(bounds.getNorth()-bounds.getSouth());
-      if(area>0.02){
-        L.marker(center,{
-          icon:L.divIcon({
-            className:"province-label-wrap",
-            html:'<div class="province-label-inner"><span class="province-label">'+pInfo.zh+'</span><br><span class="province-label-en">'+pInfo.en+'</span></div>',
-            iconSize:[120,24],
-            iconAnchor:[60,12]
-          }),
-          interactive:false
-        }).addTo(provinceLabelsGroup);
-      }
-    }catch(e){}
+function updateCityVisibility(){
+  cityLabelsGroup.clearLayers();
+  var zoom=map.getZoom();
+
+  // City labels at zoom >= 9 (~1:200,000 scale)
+  if(zoom<9)return;
+
+  // Collect unique cities from active incidents
+  var seen={};
+  activeIncidents.forEach(function(inc){
+    if(inc.city&&inc.city!=='Unknown'&&!seen[inc.city]){
+      seen[inc.city]=[inc.lat,inc.lng];
+    }
+  });
+
+  Object.keys(seen).forEach(function(city){
+    L.marker([seen[city][0],seen[city][1]],{
+      icon:L.divIcon({
+        className:"city-label-wrap",
+        html:'<div class="city-label">'+city+'</div>',
+        iconSize:[80,14],
+        iconAnchor:[40,7]
+      }),
+      interactive:false
+    }).addTo(cityLabelsGroup);
   });
 }
 

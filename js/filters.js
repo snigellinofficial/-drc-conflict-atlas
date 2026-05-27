@@ -242,6 +242,12 @@ function initFilterUI(){
   actorCount.style.cssText="font-size:10px;color:var(--ink3);margin-top:4px;font-family:var(--en);";
   actorCount.textContent=allActors.length+" 个行为体";
   actorDiv.appendChild(actorCount);
+
+  // Default: all actor chips selected
+  setTimeout(function(){
+    document.querySelectorAll("#filterActors .chip.actor-chip").forEach(function(c){c.classList.add("on");});
+    updateFilterState();
+  },100);
 }
 
 // Expose globals
