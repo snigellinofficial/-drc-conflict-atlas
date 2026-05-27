@@ -34,6 +34,10 @@ function initMap(){
     attributionControl:true
   });
 
+  // Custom pane for province layer — sits below markers (z=400+) but above tiles (z=200)
+  map.createPane('provincePane');
+  map.getPane('provincePane').style.zIndex = 380;
+
   L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{
     attribution:'&copy; <a href="https://www.openstreetmap.org/">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
     maxZoom:19
@@ -81,6 +85,7 @@ async function loadProvinceLayer(){
 
     // Interactive province layer
     provinceLayer=L.geoJSON(provinceData,{
+      pane: 'provincePane',
       style:function(feature){
         return getProvinceStyle(feature.properties.name);
       },
@@ -116,11 +121,10 @@ async function loadProvinceLayer(){
 
     // National border (thick outline, weight ~4.5)
     L.geoJSON(provinceData,{
+      pane: 'provincePane',
       style:{color:"#1a0a00",weight:4.5,fill:false,opacity:0.62,dashArray:null},
       interactive:false
     }).addTo(map);
-    provinceLayer.bringToFront();
-
     // Province labels — zoom-dependent, no border
     provinceLabelsGroup.addTo(map);
     updateLabelVisibility();
@@ -260,6 +264,15 @@ function showProvinceSummary(provinceName){
     actorHtml+='<span class="actor-hidden" id="'+uid+'-h">'+restHtml+'</span>';
   }
 
+  // Pagination for province events
+  if (!window.PROVINCE_PAGES) window.PROVINCE_PAGES = {};
+  window.PROVINCE_PAGES[provinceName] = 1;
+  var pageSize = 10;
+  var sortedEvents = provIncidents.sort(function(a,b){return b.date.localeCompare(a.date);});
+  var totalItems = sortedEvents.length;
+  var startIdx = 0;
+  var pagedEvents = sortedEvents.slice(startIdx, startIdx + pageSize);
+
   var bodyHtml='<div class="sp-section">'+
     '<table class="sp-table sp-table-province">'+
       '<tr><th>'+t('prov.metric')+'</th><th>'+t('prov.value')+'</th></tr>'+
@@ -269,17 +282,96 @@ function showProvinceSummary(provinceName){
       '<tr><td>'+t('prov.actors')+'</td><td>'+actorHtml+'</td></tr>'+
     '</table></div>'+
     '<div class="sp-section"><h4>'+t('prov.recent')+'</h4>'+
-    provIncidents.sort(function(a,b){return b.date.localeCompare(a.date);}).slice(0,8).map(function(d){
+    pagedEvents.map(function(d){
       var loc=localizeEvent(d);
-      return '<div class="report-card" onclick="flyToIncident(\''+d.id+'\')" style="cursor:pointer;">'+
+      return '<div class="report-card" style="cursor:pointer;">'+
         '<div class="rc-date">'+d.date+' &middot; '+getSeverityName(d.severity)+(LANG==='zh'?'度':'')+'</div>'+
         '<div class="rc-title">'+loc.title+'</div>'+
         '<div class="rc-desc">'+t('prov.deaths')+' '+(d.fatalities||0)+' &middot; '+getConflictTypeName(d.type)+' &middot; '+d.actor1+' vs '+d.actor2+'</div>'+
+        '<span class="prov-ev-arrow" onclick="event.stopPropagation();flyToIncident(\''+d.id+'\')">&rarr;</span>'+
       '</div>';
-    }).join('')+'</div>';
+    }).join('')+
+    (window.renderPaginationControls
+      ? window.renderPaginationControls(1, totalItems, pageSize, 'goToProvincePage', provinceName)
+      : '')+
+    '</div>';
 
   pushDrawer(titleHtml, bodyHtml, 'province-'+provinceName);
 }
+
+function goToProvincePage(page, provinceName){
+  if (!window.PROVINCE_PAGES) window.PROVINCE_PAGES = {};
+  window.PROVINCE_PAGES[provinceName] = page;
+
+  var pInfo=DRC_PROVINCES[provinceName]||{zh:provinceName,en:provinceName};
+  var provIncidents=INCIDENTS.filter(function(d){return d.province===provinceName;});
+  var fatalTotal=provIncidents.reduce(function(s,d){return s+(d.fatalities||0);},0);
+  var types={};
+  provIncidents.forEach(function(d){if(!types[d.type])types[d.type]=0;types[d.type]++;});
+
+  var pDisplay=LANG==='en'?pInfo.en:pInfo.zh;
+  var pSub=LANG==='en'?pInfo.zh:pInfo.en;
+  var titleHtml='&#128205; '+pDisplay+' <span style="font-size:13px;font-weight:400;font-family:var(--en);font-style:italic;">'+pSub+'</span>';
+
+  var actorFreq={}, filterList=['平民','N/A','政府','民众','警方','矿工工会','矿业公司'];
+  provIncidents.forEach(function(d){
+    [d.actor1,d.actor2].forEach(function(a){
+      if(!a||filterList.indexOf(a)!==-1)return;
+      if(!actorFreq[a])actorFreq[a]=0;
+      actorFreq[a]++;
+    });
+  });
+  var sortedActors=Object.entries(actorFreq).sort(function(a,b){return b[1]-a[1];});
+  var top5=sortedActors.slice(0,5);
+  var rest=sortedActors.slice(5);
+  var uid='ae-'+provinceName.replace(/[^a-zA-Z0-9]/g,'');
+  var actorHtml=top5.map(function(e){
+    return '<span class="actor-chip">'+e[0]+'<span class="chip-count">'+e[1]+'</span></span>';
+  }).join('');
+  if(rest.length>0){
+    var restHtml=rest.map(function(e){
+      return '<span class="actor-chip">'+e[0]+'<span class="chip-count">'+e[1]+'</span></span>';
+    }).join('');
+    actorHtml+=' <span class="actor-expand-btn" id="'+uid+'" onclick="toggleHiddenActors(\''+uid+'\')">... ('+rest.length+' '+t('prov.more')+')</span>';
+    actorHtml+='<span class="actor-hidden" id="'+uid+'-h">'+restHtml+'</span>';
+  }
+
+  var pageSize = 10;
+  var sortedEvents = provIncidents.sort(function(a,b){return b.date.localeCompare(a.date);});
+  var totalItems = sortedEvents.length;
+  var startIdx = (page - 1) * pageSize;
+  var pagedEvents = sortedEvents.slice(startIdx, startIdx + pageSize);
+
+  var bodyHtml='<div class="sp-section">'+
+    '<table class="sp-table sp-table-province">'+
+      '<tr><th>'+t('prov.metric')+'</th><th>'+t('prov.value')+'</th></tr>'+
+      '<tr><td>'+t('prov.totalEvents')+'</td><td style="font-weight:700;">'+provIncidents.length+'</td></tr>'+
+      '<tr><td>'+t('prov.totalDeaths')+'</td><td style="color:var(--red);font-weight:700;">'+fatalTotal+'</td></tr>'+
+      '<tr><td>'+t('prov.typeDist')+'</td><td>'+Object.entries(types).sort(function(a,b){return b[1]-a[1];}).map(function(e){return getConflictTypeName(e[0])+'('+e[1]+')';}).join(' &middot; ')+'</td></tr>'+
+      '<tr><td>'+t('prov.actors')+'</td><td>'+actorHtml+'</td></tr>'+
+    '</table></div>'+
+    '<div class="sp-section"><h4>'+t('prov.recent')+'</h4>'+
+    pagedEvents.map(function(d){
+      var loc=localizeEvent(d);
+      return '<div class="report-card" style="cursor:pointer;">'+
+        '<div class="rc-date">'+d.date+' &middot; '+getSeverityName(d.severity)+(LANG==='zh'?'度':'')+'</div>'+
+        '<div class="rc-title">'+loc.title+'</div>'+
+        '<div class="rc-desc">'+t('prov.deaths')+' '+(d.fatalities||0)+' &middot; '+getConflictTypeName(d.type)+' &middot; '+d.actor1+' vs '+d.actor2+'</div>'+
+        '<span class="prov-ev-arrow" onclick="event.stopPropagation();flyToIncident(\''+d.id+'\')">&rarr;</span>'+
+      '</div>';
+    }).join('')+
+    (window.renderPaginationControls
+      ? window.renderPaginationControls(page, totalItems, pageSize, 'goToProvincePage', provinceName)
+      : '')+
+    '</div>';
+
+  // Update sub-panel body without pushing a new drawer entry
+  var body = document.getElementById("subPanelBody");
+  if (body) body.innerHTML = bodyHtml;
+  var title = document.getElementById("subPanelTitle");
+  if (title) title.innerHTML = titleHtml;
+}
+window.goToProvincePage = goToProvincePage;
 
 function toggleHiddenActors(id){
   var btn=document.getElementById(id);
@@ -507,7 +599,7 @@ function createMarker(inc){
         (inc.verified?'<span class="sp-badge" style="background:var(--green);color:#fff;">'+t('drawer.verified')+'</span>':'')+
       '</div>'+
       '<div style="font-weight:700;font-size:13px;margin-bottom:3px;">'+loc.title+'</div>'+
-      '<div style="font-size:10px;color:var(--ink3);line-height:1.5;">'+getProvinceDisplayName(inc.province)+' &middot; '+inc.city+' &middot; '+(LANG==='zh'?'刚果(金)':'DR Congo')+'</div>'+
+      '<div style="font-size:10px;color:var(--ink3);line-height:1.5;"><a class="sp-link" onclick="event.stopPropagation();showProvinceSummary(\''+inc.province+'\')">'+getProvinceDisplayName(inc.province)+'</a> &middot; '+inc.city+' &middot; '+(LANG==='zh'?'刚果(金)':'DR Congo')+'</div>'+
       '<div style="font-size:10px;color:var(--ink3);line-height:1.5;">'+inc.date+' &middot; '+inc.actor1+' vs '+inc.actor2+'</div>'+
       '<div style="font-size:10px;color:var(--ink3);line-height:1.5;">'+t('fatalities')+': <b style="color:var(--red)">'+(inc.fatalities||0)+'</b></div>'+
       '<button onclick="if(window.openDrawer)window.openDrawer(\''+inc.id+'\')" style="margin-top:6px;font-size:10px;padding:4px 12px;border-radius:2px;cursor:pointer;background:var(--accent);color:var(--paper1);border:none;font-weight:600;font-family:var(--zh);">'+t('drawer.view')+'</button>'+

@@ -347,6 +347,45 @@ async function loadExternalData(){
 }
 
 // Init
+// Pagination state
+window.EVENT_LIST_PAGE = 1;
+window.EVENT_LIST_PAGE_SIZE = 20;
+window.TIMELINE_PAGE = 1;
+window.TIMELINE_PAGE_SIZE = 15;
+
+function renderPaginationControls(page, totalItems, pageSize, callbackName, extraArg){
+  var totalPages = Math.ceil(totalItems / pageSize);
+  if (totalPages <= 1) return '';
+  var startItem = (page - 1) * pageSize + 1;
+  var endItem = Math.min(page * pageSize, totalItems);
+  var prevDisabled = page <= 1 ? ' disabled' : '';
+  var nextDisabled = page >= totalPages ? ' disabled' : '';
+  var prevClick = page > 1 ? ' onclick="' + callbackName + '(' + (page - 1) + (extraArg !== undefined ? ',\'' + extraArg + '\'' : '') + ')"' : '';
+  var nextClick = page < totalPages ? ' onclick="' + callbackName + '(' + (page + 1) + (extraArg !== undefined ? ',\'' + extraArg + '\'' : '') + ')"' : '';
+  return '<div class="pagination">' +
+    '<button class="pg-btn' + prevDisabled + '"' + prevClick + '>&larr; ' + t('pagination.prev') + '</button>' +
+    '<span class="pg-info">' + startItem + '&ndash;' + endItem + ' ' + t('pagination.of') + ' ' + totalItems + '</span>' +
+    '<button class="pg-btn' + nextDisabled + '"' + nextClick + '>' + t('pagination.next') + ' &rarr;</button>' +
+  '</div>';
+}
+window.renderPaginationControls = renderPaginationControls;
+
+function goToEventListPage(page){
+  window.EVENT_LIST_PAGE = page;
+  if (window.updateEventList) window.updateEventList();
+  var el = document.getElementById("eventList");
+  if (el) el.scrollTop = 0;
+}
+window.goToEventListPage = goToEventListPage;
+
+function goToTimelinePage(page){
+  window.TIMELINE_PAGE = page;
+  if (window.updateTimeline) window.updateTimeline();
+  var tl = document.getElementById("tlContent");
+  if (tl) tl.scrollTop = 0;
+}
+window.goToTimelinePage = goToTimelinePage;
+
 function init(){
   initLangFromURL();
   initMap();
@@ -494,6 +533,80 @@ function closeMoreInfo(){
   document.getElementById("moreInfoOverlay").classList.remove("open");
   document.getElementById("moreInfoModal").classList.remove("open");
 }
+
+// Info panel event search
+function onInfoSearch(query){
+  var resultsDiv = document.getElementById("infoSearchResults");
+  if (!resultsDiv) return;
+  if (!query || query.trim().length < 2) { resultsDiv.innerHTML = ''; resultsDiv.classList.remove('open'); return; }
+  var q = query.trim().toLowerCase();
+  var hits = [];
+  INCIDENTS.forEach(function(inc){
+    var loc = localizeEvent(inc);
+    var provDisp = (getProvinceDisplayName(inc.province) || '').toLowerCase();
+    var score = 0;
+    if ((inc.actor1||'').toLowerCase().indexOf(q) !== -1) score += 3;
+    if ((inc.actor2||'').toLowerCase().indexOf(q) !== -1) score += 3;
+    if (loc.title.toLowerCase().indexOf(q) !== -1) score += 2;
+    if (loc.desc.toLowerCase().indexOf(q) !== -1) score += 1;
+    if ((inc.province||'').toLowerCase().indexOf(q) !== -1) score += 2;
+    if (provDisp.indexOf(q) !== -1) score += 2;
+    if ((inc.city||'').toLowerCase().indexOf(q) !== -1) score += 1;
+    if (score > 0) hits.push({inc: inc, loc: loc, score: score});
+  });
+  hits.sort(function(a,b){ return b.score - a.score; });
+  hits = hits.slice(0, 8);
+  if (hits.length === 0) {
+    resultsDiv.innerHTML = '<div class="isr-empty">' + t('info.searchNoResults') + '</div>';
+  } else {
+    var html = '<div class="isr-count">' + t('info.searchResults').replace('{n}', hits.length) + '</div>';
+    hits.forEach(function(h){
+      html += '<div class="isr-item" onclick="flyToIncident(\'' + h.inc.id + '\')">' +
+        '<div class="isr-title">' + h.loc.title + '</div>' +
+        '<div class="isr-meta">' + h.inc.date + ' &middot; ' + getProvinceDisplayName(h.inc.province) + ' &middot; ' + getConflictTypeName(h.inc.type) + '</div>' +
+      '</div>';
+    });
+    resultsDiv.innerHTML = html;
+  }
+  resultsDiv.classList.add('open');
+}
+window.onInfoSearch = onInfoSearch;
+
+// Filter by a single actor — deselect all actor chips, select this one, apply filters, close drawer
+function filterByActor(actorName){
+  if (!actorName) return;
+  // Deselect all actor chips
+  document.querySelectorAll('#filterActors .chip.on').forEach(function(c){ c.classList.remove('on'); });
+  // Find and select the chip for this actor
+  var found = false;
+  document.querySelectorAll('#filterActors .chip').forEach(function(c){
+    if (c.dataset.value === actorName) { c.classList.add('on'); found = true; }
+  });
+  if (!found) {
+    showToast('"' + actorName + '" ' + (LANG === 'zh' ? '不在筛选列表中' : 'not in filter list'));
+    return;
+  }
+  // Close drawer
+  if (window.closeAllDrawers) closeAllDrawers();
+  else closeDrawer();
+  // Apply filters
+  if (window.applyFilters) applyFilters();
+  // Scroll to filter panel
+  var filterBody = document.getElementById('filterBody');
+  if (filterBody && filterBody.parentElement) {
+    var ph = filterBody.parentElement.querySelector('.ph-title');
+    if (ph) ph.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+window.filterByActor = filterByActor;
+
+function filterByActorFromBrief(actorName){
+  // Ensure filter panel is expanded
+  var filterBody = document.getElementById('filterBody');
+  if (filterBody) filterBody.style.display = 'block';
+  filterByActor(actorName);
+}
+window.filterByActorFromBrief = filterByActorFromBrief;
 
 // Expose so i18n can re-render the modal on language switch
 function updateMoreInfoModal(){

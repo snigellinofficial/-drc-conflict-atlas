@@ -16,6 +16,8 @@ function updateFilterState(){
 
 function applyFilters(){
   updateFilterState();
+  window.EVENT_LIST_PAGE = 1;
+  window.TIMELINE_PAGE = 1;
   activeIncidents=INCIDENTS.filter(function(d){
     if(currentFilters.types.size>0&&!currentFilters.types.has(d.type))return false;
     if(currentFilters.severity.size>0&&!currentFilters.severity.has(d.severity))return false;
@@ -48,6 +50,8 @@ function resetFilters(){
   var dt=document.getElementById("dateTo");if(dt)dt.value=timeRange.end||"";
   var as=document.getElementById("actorSearch");if(as)as.value="";filterActors("");
   currentFilters={types:new Set(),severity:new Set(),actors:new Set(),province:"",dateFrom:timeRange.start||"",dateTo:timeRange.end||""};
+  window.EVENT_LIST_PAGE = 1;
+  window.TIMELINE_PAGE = 1;
   activeIncidents=[...INCIDENTS];
   renderMarkers();
   if(window.updateTimeline)window.updateTimeline();
@@ -136,6 +140,11 @@ function showActorBrief(actorName){
         (profile.wiki?'<br><br>&#128214; <a href="'+profile.wiki+'" target="_blank" rel="noopener">'+wikiLabel+' &nearr;</a>':'')+
       '</p>'+
     '</div>';
+  // "Filter by this actor" button
+  bodyHtml+='<div class="sp-section" style="text-align:center;padding-top:6px;">'+
+    '<button onclick="filterByActorFromBrief(\''+actorName.replace(/'/g,"\\'")+'\')" style="font-family:var(--zh);font-size:11px;padding:6px 18px;border-radius:2px;cursor:pointer;background:var(--red);color:var(--white);border:none;font-weight:600;transition:all .2s;" onmouseenter="this.style.background=\'var(--ink)\'" onmouseleave="this.style.background=\'var(--red)\'">'+t('actor.filterEvents')+'</button>'+
+  '</div>';
+
   if(window.pushDrawer){
     pushDrawer(titleHtml, bodyHtml, 'actor-'+actorName);
   }else{

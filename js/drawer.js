@@ -36,7 +36,8 @@ function openDrawer(id){
         '<span class="sp-badge" style="background:'+verifiedColor+';color:#fff;">'+verifiedLabel+'</span>'+
       '</div>'+
       '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink3);margin-bottom:14px;">'+
-        '<span>'+cityText+(cityText?' &middot; ':'')+(LANG==='zh'?provName+'('+provEn+')':provEn+' ('+provName+')')+'</span>'+
+        '<span>'+cityText+(cityText?' &middot; ':'')+
+        '<a class="sp-link" onclick="event.stopPropagation();showProvinceSummary(\''+inc.province+'\')">'+(LANG==='zh'?provName+'('+provEn+')':provEn+' ('+provName+')')+'</a></span>'+
         '<span>'+inc.date+'</span>'+
         '<span>'+inc.actor1+' vs '+inc.actor2+'</span>'+
       '</div>'+
@@ -54,9 +55,9 @@ function openDrawer(id){
         '<tr><td>'+t('drawer.fatalities')+'</td><td style="color:var(--red);font-weight:700;">'+fatalityText+'</td></tr>'+
         '<tr><td>'+t('drawer.type')+'</td><td style="color:'+tc.color+';">'+typeName+'</td></tr>'+
         '<tr><td>'+t('drawer.severity')+'</td><td style="color:'+sc.color+';">'+sevName+'</td></tr>'+
-        '<tr><td>'+t('drawer.province')+'</td><td>'+(LANG==='zh'?provName+' / '+provEn:provEn+' / '+provName)+'</td></tr>'+
-        '<tr><td>'+t('drawer.actor1')+'</td><td>'+inc.actor1+' '+(ACTOR_PROFILES[inc.actor1]?'<a href="javascript:window.showActorBrief(\''+inc.actor1+'\')" style="color:var(--accent);font-size:10px;">'+profileLabel+'</a>':'')+'</td></tr>'+
-        '<tr><td>'+t('drawer.actor2')+'</td><td>'+inc.actor2+' '+(ACTOR_PROFILES[inc.actor2]?'<a href="javascript:window.showActorBrief(\''+inc.actor2+'\')" style="color:var(--accent);font-size:10px;">'+profileLabel+'</a>':'')+'</td></tr>'+
+        '<tr><td>'+t('drawer.province')+'</td><td><a class="sp-link" onclick="showProvinceSummary(\''+inc.province+'\')">'+(LANG==='zh'?provName+' / '+provEn:provEn+' / '+provName)+'</a></td></tr>'+
+        '<tr><td>'+t('drawer.actor1')+'</td><td><a class="sp-link" onclick="filterByActor(\''+inc.actor1.replace(/'/g,"\\'")+'\')">'+inc.actor1+'</a> '+(ACTOR_PROFILES[inc.actor1]?'<a href="javascript:window.showActorBrief(\''+inc.actor1+'\')" style="color:var(--accent);font-size:10px;">'+profileLabel+'</a>':'')+'</td></tr>'+
+        '<tr><td>'+t('drawer.actor2')+'</td><td><a class="sp-link" onclick="filterByActor(\''+inc.actor2.replace(/'/g,"\\'")+'\')">'+inc.actor2+'</a> '+(ACTOR_PROFILES[inc.actor2]?'<a href="javascript:window.showActorBrief(\''+inc.actor2+'\')" style="color:var(--accent);font-size:10px;">'+profileLabel+'</a>':'')+'</td></tr>'+
       '</table>'+
     '</div>'+
 

@@ -31,11 +31,18 @@ function updateEventList(){
   var ec=document.getElementById("evtCount");
   if(ec)ec.textContent=sorted.length+unitLabel;
 
+  // Pagination
+  var page = window.EVENT_LIST_PAGE || 1;
+  var pageSize = window.EVENT_LIST_PAGE_SIZE || 20;
+  var totalItems = sorted.length;
+  var startIdx = (page - 1) * pageSize;
+  var paged = sorted.slice(startIdx, startIdx + pageSize);
+
   if(groupBy==="none"){
-    el.innerHTML=sorted.map(renderEventItem).join("");
+    el.innerHTML=paged.map(renderEventItem).join("");
   }else if(groupBy==="year"){
     var groups={};
-    sorted.forEach(function(d){
+    paged.forEach(function(d){
       var y=d.date.slice(0,4);
       if(!groups[y])groups[y]=[];
       groups[y].push(d);
@@ -50,7 +57,7 @@ function updateEventList(){
     el.innerHTML=html;
   }else if(groupBy==="province"){
     var g2={};
-    sorted.forEach(function(d){
+    paged.forEach(function(d){
       var p=d.province||unknownProv;
       if(!g2[p])g2[p]=[];
       g2[p].push(d);
@@ -63,6 +70,11 @@ function updateEventList(){
     });
     el.innerHTML=html2;
   }
+
+  // Append pagination controls
+  el.innerHTML += window.renderPaginationControls
+    ? window.renderPaginationControls(page, totalItems, pageSize, 'goToEventListPage')
+    : '';
 }
 
 function renderEventItem(d){
@@ -75,7 +87,7 @@ function renderEventItem(d){
     '<span class="evt-dot" style="background:'+tc.color+'"></span>'+
     '<div class="evt-info">'+
       '<div class="evt-title" title="'+loc.title.replace(/"/g,"&quot;")+'">'+loc.title+'</div>'+
-      '<div class="evt-meta">'+provName+' &middot; '+d.date+' &middot; '+typeName+'</div>'+
+      '<div class="evt-meta"><a class="sp-link" onclick="event.stopPropagation();showProvinceSummary(\''+d.province+'\')">'+provName+'</a> &middot; '+d.date+' &middot; '+typeName+'</div>'+
     '</div>'+
     '<span class="evt-fatal" style="color:'+fatalColor+'">'+(d.fatalities||0)+'</span>'+
   '</div>';
@@ -97,11 +109,18 @@ function updateTimeline(){
     sorted=sorted.filter(function(d){return d.severity==="critical"||d.severity==="high";});
   }
 
+  // Pagination
+  var page = window.TIMELINE_PAGE || 1;
+  var pageSize = window.TIMELINE_PAGE_SIZE || 15;
+  var totalItems = sorted.length;
+  var startIdx = (page - 1) * pageSize;
+  var paged = sorted.slice(startIdx, startIdx + pageSize);
+
   var unitLabel=LANG==='zh'?' 条':' events';
   var tc=document.getElementById("tlCount");
-  if(tc)tc.textContent=sorted.length+unitLabel;
+  if(tc)tc.textContent=totalItems+unitLabel;
 
-  tl.innerHTML=sorted.slice(0,60).map(function(d){
+  var html = paged.map(function(d){
     var cfg=CONFLICT_TYPES[d.type];
     var loc=localizeEvent(d);
     return '<div class="tl-item" onclick="flyToIncident(\''+d.id+'\')">'+
@@ -110,4 +129,10 @@ function updateTimeline(){
       '<span class="tl-text">'+loc.title+'</span>'+
     '</div>';
   }).join("");
+
+  html += window.renderPaginationControls
+    ? window.renderPaginationControls(page, totalItems, pageSize, 'goToTimelinePage')
+    : '';
+
+  tl.innerHTML=html;
 }

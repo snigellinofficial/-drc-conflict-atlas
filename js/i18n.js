@@ -36,6 +36,9 @@ var I18N = {
   'info.langBrief':     {zh:"语言切换", en:"Language"},
   'info.langBriefText': {zh:"页面顶部「中 | EN」按钮切换界面语言。行为体名称等专有名词保留原文。",
                           en:"Toggle \"中 | EN\" at the top to switch the interface language. Proper nouns such as actor names are kept in the original."},
+  'info.search':        {zh:"搜索事件（行为体/地名/关键词）...", en:"Search events (actor/location/keyword)..."},
+  'info.searchNoResults':{zh:"未找到匹配事件", en:"No matching events found."},
+  'info.searchResults': {zh:"找到 {n} 条结果", en:"{n} result(s) found."},
 
   /* --- Right panel --- */
   'panel.stats':       {zh:"统计概览 / Statistics", en:"Statistics"},
@@ -156,6 +159,7 @@ var I18N = {
   'actor.profile':     {zh:"组织概况 / Profile", en:"Organization Profile"},
   'actor.sources':     {zh:"信息来源 / Sources", en:"Sources"},
   'actor.noProfile':   {zh:"暂无详细档案", en:"No detailed profile available"},
+  'actor.filterEvents': {zh:"筛选此行为体相关事件", en:"Filter events by this actor"},
 
   /* --- Reports --- */
   'report.monthlyTitle': {zh:"月度安全态势报告", en:"Monthly Security Report"},
@@ -200,6 +204,11 @@ var I18N = {
   'toast.provFail':    {zh:"省级地图加载失败，请检查网络连接", en:"Province map failed to load — check network"},
   'toast.filtersReset':{zh:"筛选已重置", en:"Filters reset"},
   'toast.dataLoaded':  {zh:"已加载外部数据: +", en:"External data loaded: +"},
+
+  /* --- Pagination --- */
+  'pagination.prev':   {zh:"上一页", en:"Prev"},
+  'pagination.next':   {zh:"下一页", en:"Next"},
+  'pagination.of':     {zh:"/", en:"of"},
 
   /* --- More info modal --- */
   'moreInfo.title':    {zh:"更多信息 / More Information", en:"More Information"},
@@ -544,9 +553,16 @@ function rebuildInfoPanelBody() {
   var body = document.querySelector('.info-panel-body-inner');
   if (!body) return;
   body.innerHTML =
+    '<div class="info-search-wrap">' +
+      '<input id="infoSearchInput" class="info-search-input" type="text" placeholder="' + t('info.search') + '" oninput="onInfoSearch(this.value)" />' +
+      '<div id="infoSearchResults" class="info-search-results"></div>' +
+    '</div>' +
     '<p><span class="info-label">' + t('info.map') + '</span><br>' + t('info.mapText') + '</p>' +
     '<p><span class="info-label">' + t('info.filtersBrief') + '</span><br>' + t('info.filtersBriefText') + '</p>' +
-    '<p><span class="info-label">' + t('info.langBrief') + '</span><br>' + t('info.langBriefText') + '</p>';
+    '<p><span class="info-label">' + t('info.langBrief') + '</span><br>' + t('info.langBriefText') + '</p>' +
+    '<p style="margin-top:10px;text-align:center;">' +
+      '<button onclick="showMoreInfo()" class="info-more-btn">' + t('moreInfo.btn') + '</button>' +
+    '</p>';
 }
 
 function rebuildMapLegendContent() {
