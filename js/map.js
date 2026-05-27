@@ -1,16 +1,31 @@
 /* =====================================================================
-   MAP — Leaflet 地图、DRC省份GeoJSON、标记渲染、交互、视图模式
+   MAP — Leaflet 地图、DRC省份GeoJSON、标记渲染、交互
+   省份视图 · 自适应标签 · 时间轴联动 · 弹窗栈
    ===================================================================== */
 let map, markerCluster, provinceLayer, activeIncidents=[...INCIDENTS];
 let currentFilters={types:new Set(),severity:new Set(),actors:new Set(),province:"",dateFrom:"",dateTo:""};
 let provinceData=null;
 let selectedProvince=null;
-let currentViewMode="province";  // "province" | "current" | "historical"
-let heatLayer=null;
-let timeSlider=null;
-let timeRange={start:"2020-01-01",end:"2026-12-31"};
+let provinceLabelsGroup=L.layerGroup();
+
+// Active time range (default: last 3 months)
+let timeRange={start:"",end:""};
+
+function getDefaultTimeRange(){
+  var now=new Date();
+  var d=new Date(now.getFullYear(), now.getMonth()-3, now.getDate());
+  var end=now.toISOString().slice(0,10);
+  var start=d.toISOString().slice(0,10);
+  return {start:start,end:end};
+}
 
 function initMap(){
+  var tr=getDefaultTimeRange();
+  timeRange.start=tr.start;
+  timeRange.end=tr.end;
+  currentFilters.dateFrom=tr.start;
+  currentFilters.dateTo=tr.end;
+
   map=L.map("map",{
     center:[-3.5, 24.5],
     zoom:6,
@@ -20,7 +35,6 @@ function initMap(){
     attributionControl:true
   });
 
-  // Light terrain tiles — colonial atlas feel
   L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{
     attribution:'&copy; <a href="https://www.openstreetmap.org/">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
     maxZoom:19
@@ -30,134 +44,84 @@ function initMap(){
     chunkedLoading:true,
     maxClusterRadius:30,
     iconCreateFunction:function(cluster){
-      const count=cluster.getChildCount();
-      let cls="marker-cluster-small";
+      var count=cluster.getChildCount();
+      var cls="marker-cluster-small";
       if(count>=20)cls="marker-cluster-large";
       else if(count>=10)cls="marker-cluster-medium";
-      return L.divIcon({html:`<div><span>${count}</span></div>`,className:cls,iconSize:L.point(40,40)});
+      return L.divIcon({html:'<div><span>'+count+'</span></div>',className:cls,iconSize:L.point(40,40)});
     }
   });
   map.addLayer(markerCluster);
 
   loadProvinceLayer();
   buildMapLegend();
+  initTimeSlider();
+
+  // Update time-display province fills on zoom/move
+  map.on("zoomend", updateLabelVisibility);
+  map.on("zoomend", refreshProvinceStyles);
 }
+
+// ===================== PROVINCE LAYER =====================
 
 async function loadProvinceLayer(){
   try{
-    // Use preloaded global if available (avoids CORS on file://), else fetch
     if(typeof DRC_PROVINCES_GEOJSON!=="undefined"){
       provinceData=DRC_PROVINCES_GEOJSON;
     }else{
-      const resp=await fetch("data/drc_provinces.json");
+      var resp=await fetch("data/drc_provinces.json");
       if(!resp.ok)throw new Error("Province GeoJSON not available");
       provinceData=await resp.json();
     }
 
-    // === Interactive province layer (top, clickable) ===
+    // Interactive province layer
     provinceLayer=L.geoJSON(provinceData,{
       style:function(feature){
-        const name=feature.properties.name;
-        const hasIncidents=INCIDENTS.some(d=>d.province===name);
-        const isSelected=selectedProvince===name;
-        return {
-          color: isSelected ? "#1a0a00" : (hasIncidents ? "#6b1a1a" : "#5a4a3a"),
-          weight: isSelected ? 3.2 : 1.2,
-          fillColor: isSelected ? "#d4a08a" : (hasIncidents ? "#c98b7a" : "#e8dcc8"),
-          fillOpacity: isSelected ? 0.42 : (hasIncidents ? 0.16 : 0.06),
-          opacity: isSelected ? 1.0 : 0.78,
-          dashArray: null
-        };
+        return getProvinceStyle(feature.properties.name);
       },
       onEachFeature:function(feature,layer){
-        const name=feature.properties.name;
-        const pInfo=DRC_PROVINCES[name]||{zh:name,en:name};
+        var name=feature.properties.name;
 
-        // Click → filter + zoom + summary (toggle selection)
+        // Click → open province summary in sub-panel (does NOT filter conflicts)
         layer.on("click",function(e){
           if(selectedProvince===name){
             // Deselect
             selectedProvince=null;
-            currentFilters.province="";
-            var sel=document.getElementById("filterProvince");
-            if(sel)sel.value="";
-            applyFilters();
             refreshProvinceStyles();
             return;
           }
           selectedProvince=name;
-          currentFilters.province=name;
-          var sel=document.getElementById("filterProvince");
-          if(sel)sel.value=name;
-          applyFilters();
           refreshProvinceStyles();
           map.fitBounds(layer.getBounds(),{padding:[60,60],maxZoom:9});
           showProvinceSummary(name);
         });
 
-        // Hover: highlight province border
+        // Hover highlight
         layer.on("mouseover",function(){
           if(selectedProvince===name)return;
-          layer.setStyle({fillOpacity:0.28,weight:2.4,color:"#2a1000"});
+          layer.setStyle({fillOpacity:0.28,weight:2.8,color:"#2a1000"});
           layer.bringToFront();
         });
         layer.on("mouseout",function(){
           if(selectedProvince===name)return;
-          var hasIncidents=INCIDENTS.some(function(d){return d.province===name;});
-          layer.setStyle({
-            fillOpacity: hasIncidents?0.16:0.06,
-            weight: 1.2,
-            color: hasIncidents?"#6b1a1a":"#5a4a3a"
-          });
+          layer.setStyle(getProvinceStyle(name));
         });
       }
     }).addTo(map);
 
-    // === Background border layer (thick DRC national outline) ===
+    // National border (thick outline, weight ~4.5)
     L.geoJSON(provinceData,{
-      style: {
-        color: "#1a0a00",
-        weight: 4.5,
-        fill: false,
-        opacity: 0.62,
-        dashArray: null
-      },
-      interactive: false
+      style:{color:"#1a0a00",weight:4.5,fill:false,opacity:0.62,dashArray:null},
+      interactive:false
     }).addTo(map);
-    // Bring interactive layer above the outline
     provinceLayer.bringToFront();
 
-    // Add province name labels — show ALL provinces
-    provinceData.features.forEach(function(feat){
-      var name=feat.properties.name;
-      var pInfo=DRC_PROVINCES[name];
-      if(!pInfo)return;
-      try{
-        var geoLayer=L.geoJSON(feat);
-        var center=geoLayer.getBounds().getCenter();
-        var bounds=geoLayer.getBounds();
-        var area=(bounds.getEast()-bounds.getWest())*(bounds.getNorth()-bounds.getSouth());
-        // Show labels for all but the tiniest provinces
-        if(area>0.05){
-          L.marker(center,{
-            icon:L.divIcon({
-              className:"province-label-wrap",
-              html:`<div class="province-label-inner">
-                <div class="province-label">${pInfo.zh}</div>
-                <div class="province-label-en">${pInfo.en}</div>
-              </div>`,
-              iconSize:[130,28],
-              iconAnchor:[65,14]
-            }),
-            interactive:false
-          }).addTo(map);
-        }
-      }catch(e){}
-    });
+    // Province labels — zoom-dependent, no border
+    provinceLabelsGroup.addTo(map);
+    updateLabelVisibility();
 
     showToast("DRC 26省行政区划已加载 — 点击省份互动");
 
-    // Show a brief map hint that fades
     var hint=L.divIcon({className:"map-hint",html:'<div style="text-align:center;">点击任意省份<br>查看冲突详情</div>',iconSize:[160,44],iconAnchor:[80,22]});
     var hintMarker=L.marker([-4.5,24.5],{icon:hint,interactive:false}).addTo(map);
     setTimeout(function(){map.removeLayer(hintMarker);},5000);
@@ -167,305 +131,266 @@ async function loadProvinceLayer(){
   }
 }
 
+function getProvinceStyle(name){
+  var hasIncidents=timeRange.start&&timeRange.end
+    ? activeIncidents.some(function(d){return d.province===name&&d.date>=timeRange.start&&d.date<=timeRange.end;})
+    : activeIncidents.some(function(d){return d.province===name;});
+  var isSelected=selectedProvince===name;
+  return {
+    color: isSelected ? "#1a0a00" : (hasIncidents ? "#5a0000" : "#8a7a6a"),
+    weight: isSelected ? 2.8 : 1.5,
+    fillColor: isSelected ? "#d4a08a" : (hasIncidents ? "#8b2020" : "#e8dcc8"),
+    fillOpacity: isSelected ? 0.42 : (hasIncidents ? 0.24 : 0.06),
+    opacity: isSelected ? 1.0 : 0.78,
+    dashArray: null
+  };
+}
+
 function refreshProvinceStyles(){
   if(!provinceLayer)return;
   provinceLayer.eachLayer(function(layer){
-    var name=layer.feature.properties.name;
-    var hasIncidents=activeIncidents.some(function(d){return d.province===name;});
-    var isSelected=selectedProvince===name;
-    layer.setStyle({
-      color: isSelected ? "#1a0a00" : (hasIncidents ? "#6b1a1a" : "#5a4a3a"),
-      weight: isSelected ? 3.2 : 1.2,
-      fillColor: isSelected ? "#d4a08a" : (hasIncidents ? "#c98b7a" : "#e8dcc8"),
-      fillOpacity: isSelected ? 0.42 : (hasIncidents ? 0.16 : 0.06),
-      opacity: isSelected ? 1.0 : 0.78
-    });
+    layer.setStyle(getProvinceStyle(layer.feature.properties.name));
   });
 }
 
+// ===================== ZOOM-DEPENDENT LABELS =====================
+
+function updateLabelVisibility(){
+  provinceLabelsGroup.clearLayers();
+  var zoom=map.getZoom();
+
+  // Show labels at zoom >= 9 (~1:140,000 scale, exceeds 1:200,000 requirement)
+  if(zoom<9||!provinceData)return;
+
+  provinceData.features.forEach(function(feat){
+    var name=feat.properties.name;
+    var pInfo=DRC_PROVINCES[name];
+    if(!pInfo)return;
+    try{
+      var geoLayer=L.geoJSON(feat);
+      var center=geoLayer.getBounds().getCenter();
+      var bounds=geoLayer.getBounds();
+      var area=(bounds.getEast()-bounds.getWest())*(bounds.getNorth()-bounds.getSouth());
+      if(area>0.02){
+        L.marker(center,{
+          icon:L.divIcon({
+            className:"province-label-wrap",
+            html:'<div class="province-label-inner"><span class="province-label">'+pInfo.zh+'</span><br><span class="province-label-en">'+pInfo.en+'</span></div>',
+            iconSize:[120,24],
+            iconAnchor:[60,12]
+          }),
+          interactive:false
+        }).addTo(provinceLabelsGroup);
+      }
+    }catch(e){}
+  });
+}
+
+// ===================== PROVINCE SUMMARY SUB-PANEL =====================
+
 function showProvinceSummary(provinceName){
-  const pInfo=DRC_PROVINCES[provinceName]||{zh:provinceName,en:provinceName};
-  const provIncidents=activeIncidents.filter(d=>d.province===provinceName);
-  const fatalTotal=provIncidents.reduce((s,d)=>s+(d.fatalities||0),0);
-  const types={};provIncidents.forEach(d=>{if(!types[d.type])types[d.type]=0;types[d.type]++;});
+  var pInfo=DRC_PROVINCES[provinceName]||{zh:provinceName,en:provinceName};
+  // Province shows ALL incidents regardless of current time filter
+  var provIncidents=INCIDENTS.filter(function(d){return d.province===provinceName;});
+  var fatalTotal=provIncidents.reduce(function(s,d){return s+(d.fatalities||0);},0);
+  var types={};
+  provIncidents.forEach(function(d){if(!types[d.type])types[d.type]=0;types[d.type]++;});
 
   if(provIncidents.length===0){
-    showToast(pInfo.zh+": 当前筛选条件下无冲突事件记录");
+    showToast(pInfo.zh+": 暂无冲突事件记录");
     return;
   }
 
-  var overlay=document.getElementById("subOverlay");
-  var panel=document.getElementById("subPanel");
-  var body=document.getElementById("subPanelBody");
-  var title=document.getElementById("subPanelTitle");
-  title.innerHTML='&#128205; '+pInfo.zh+' <span style="font-size:13px;font-weight:400;font-family:var(--en);font-style:italic;">'+pInfo.en+'</span>';
-  body.innerHTML=`
-    <div class="sp-section">
-      <table class="sp-table">
-        <tr><th>指标</th><th>数值</th></tr>
-        <tr><td>当前事件总数</td><td style="font-weight:700;">${provIncidents.length}</td></tr>
-        <tr><td>估计累计死亡</td><td style="color:var(--red);font-weight:700;">${fatalTotal}</td></tr>
-        <tr><td>冲突类型分布</td><td>${Object.entries(types).sort((a,b)=>b[1]-a[1]).map(([t,n])=>CONFLICT_TYPES[t].zh+'('+n+')').join(" &middot; ")}</td></tr>
-        <tr><td>涉及行为体</td><td>${[...new Set(provIncidents.flatMap(d=>[d.actor1,d.actor2]))].filter(a=>a!=="平民"&&a!=="N/A").join("、")}</td></tr>
-      </table>
-    </div>
-    <div class="sp-section">
-      <h4>最近事件 / Recent Incidents</h4>
-      ${provIncidents.sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8).map(d=>`
-        <div class="report-card" onclick="flyToIncident('${d.id}')" style="cursor:pointer;">
-          <div class="rc-date">${d.date} &middot; ${SEVERITY_LEVELS[d.severity].zh}度</div>
-          <div class="rc-title">${d.title}</div>
-          <div class="rc-desc">死亡: ${d.fatalities||0} &middot; ${CONFLICT_TYPES[d.type].zh} &middot; ${d.actor1} vs ${d.actor2}</div>
-        </div>`).join("")}
-    </div>
-  `;
-  overlay.classList.add("open");
-  panel.classList.add("open");
+  var titleHtml='&#128205; '+pInfo.zh+' <span style="font-size:13px;font-weight:400;font-family:var(--en);font-style:italic;">'+pInfo.en+'</span>';
+  var bodyHtml='<div class="sp-section">'+
+    '<table class="sp-table">'+
+      '<tr><th>指标</th><th>数值</th></tr>'+
+      '<tr><td>历史事件总数</td><td style="font-weight:700;">'+provIncidents.length+'</td></tr>'+
+      '<tr><td>估计累计死亡</td><td style="color:var(--red);font-weight:700;">'+fatalTotal+'</td></tr>'+
+      '<tr><td>冲突类型分布</td><td>'+Object.entries(types).sort(function(a,b){return b[1]-a[1];}).map(function(e){return CONFLICT_TYPES[e[0]].zh+'('+e[1]+')';}).join(" &middot; ")+'</td></tr>'+
+      '<tr><td>涉及行为体</td><td>'+[...new Set(provIncidents.flatMap(function(d){return [d.actor1,d.actor2];}))].filter(function(a){return a!=="平民"&&a!=="N/A";}).join("、")+'</td></tr>'+
+    '</table></div>'+
+    '<div class="sp-section"><h4>最近事件 / Recent Incidents</h4>'+
+    provIncidents.sort(function(a,b){return b.date.localeCompare(a.date);}).slice(0,8).map(function(d){
+      return '<div class="report-card" onclick="flyToIncident(\''+d.id+'\')" style="cursor:pointer;">'+
+        '<div class="rc-date">'+d.date+' &middot; '+SEVERITY_LEVELS[d.severity].zh+'度</div>'+
+        '<div class="rc-title">'+d.title+'</div>'+
+        '<div class="rc-desc">死亡: '+(d.fatalities||0)+' &middot; '+CONFLICT_TYPES[d.type].zh+' &middot; '+d.actor1+' vs '+d.actor2+'</div>'+
+      '</div>';
+    }).join("")+'</div>';
+
+  pushDrawer(titleHtml, bodyHtml, 'province-'+provinceName);
 }
 
-// ===================== VIEW MODE SWITCHING =====================
+// ===================== TIME SLIDER =====================
 
-function switchViewMode(mode){
-  currentViewMode=mode;
-
-  // Update header buttons
-  document.querySelectorAll(".vm-btn").forEach(function(b){
-    b.classList.toggle("active", b.dataset.mode===mode);
-  });
-
-  // Remove heat layer if present
-  if(heatLayer){map.removeLayer(heatLayer);heatLayer=null;}
-
-  // Remove time slider if present
-  var sliderWrap=document.getElementById("timeSliderWrap");
-  if(sliderWrap)sliderWrap.style.display="none";
-
-  // Reset selected province
-  selectedProvince=null;
-
-  switch(mode){
-    case "province":
-      // Province View: show province layer, cluster markers
-      if(provinceLayer)map.addLayer(provinceLayer);
-      if(!map.hasLayer(markerCluster))map.addLayer(markerCluster);
-      map.setZoom(6);
-      currentFilters.province="";
-      applyFilters();
-      refreshProvinceStyles();
-      showToast("已切换至：省份视图");
-      break;
-
-    case "current":
-      // Current Conflicts View: remove province layer, show individual (non-clustered) markers
-      if(provinceLayer)map.removeLayer(provinceLayer);
-      if(!map.hasLayer(markerCluster))map.addLayer(markerCluster);
-      // Show all incidents — markerCluster handles clustering
-      currentFilters.province="";
-      applyFilters();
-      showToast("已切换至：当前冲突视图 (全部记录)");
-      break;
-
-    case "historical":
-      // Historical Conflicts View: heatmap + time slider
-      if(provinceLayer)map.addLayer(provinceLayer);
-      provinceLayer.setStyle({fillOpacity:0.04,weight:0.8,color:"#999",fillColor:"#e8dcc8"});
-      map.removeLayer(markerCluster);
-      showTimeSlider();
-      applyHeatmap(timeRange.start, timeRange.end);
-      showToast("已切换至：历史冲突视图 (热力图模式)");
-      break;
-  }
-}
-
-// ===================== HISTORICAL / HEATMAP VIEW =====================
-
-function showTimeSlider(){
+function initTimeSlider(){
   var wrap=document.getElementById("timeSliderWrap");
   if(!wrap){
     wrap=document.createElement("div");
     wrap.id="timeSliderWrap";
     wrap.className="time-slider-wrap";
-    wrap.innerHTML=`
-      <div class="time-slider-label">历史时间范围 / Historical Range</div>
-      <div class="time-slider-row">
-        <input type="date" id="histDateFrom" class="time-date-input" value="2020-01-01" />
-        <span class="time-slider-sep">&mdash;</span>
-        <input type="date" id="histDateTo" class="time-date-input" value="2026-12-31" />
-        <button class="time-slider-btn" id="histApplyBtn">应用</button>
-      </div>
-      <div class="time-slider-info" id="histInfo"></div>
-    `;
+    wrap.innerHTML=
+      '<div class="ts-label">时段 / Period</div>'+
+      '<div class="ts-row">'+
+        '<button class="ts-btn-preset" id="tsAllBtn" title="选择全部时段">全部</button>'+
+        '<button class="ts-btn-preset" id="ts3mBtn" title="最近三个月">3月</button>'+
+        '<button class="ts-btn-preset" id="ts1yBtn" title="最近一年">1年</button>'+
+        '<button class="ts-btn-preset" id="ts5yBtn" title="最近五年">5年</button>'+
+      '</div>'+
+      '<div class="ts-row ts-dates">'+
+        '<input type="date" id="tsDateFrom" class="ts-date" />'+
+        '<span class="ts-sep">&mdash;</span>'+
+        '<input type="date" id="tsDateTo" class="ts-date" />'+
+      '</div>'+
+      '<div class="ts-info" id="tsInfo"></div>';
     document.querySelector(".map-wrap").appendChild(wrap);
+    wrap.style.display="block";
 
-    document.getElementById("histApplyBtn").addEventListener("click",function(){
-      var from=document.getElementById("histDateFrom").value;
-      var to=document.getElementById("histDateTo").value;
-      if(from&&to){
-        timeRange={start:from,end:to};
-        applyHeatmap(from,to);
-      }
+    // Set initial values
+    document.getElementById("tsDateFrom").value=timeRange.start;
+    document.getElementById("tsDateTo").value=timeRange.end;
+
+    // Preset buttons
+    document.getElementById("tsAllBtn").addEventListener("click",function(){
+      setTimeRange("2020-01-01","2026-12-31");
+    });
+    document.getElementById("ts3mBtn").addEventListener("click",function(){
+      var now=new Date();
+      var d=new Date(now.getFullYear(),now.getMonth()-3,now.getDate());
+      setTimeRange(d.toISOString().slice(0,10),now.toISOString().slice(0,10));
+    });
+    document.getElementById("ts1yBtn").addEventListener("click",function(){
+      var now=new Date();
+      var d=new Date(now.getFullYear()-1,now.getMonth(),now.getDate());
+      setTimeRange(d.toISOString().slice(0,10),now.toISOString().slice(0,10));
+    });
+    document.getElementById("ts5yBtn").addEventListener("click",function(){
+      var now=new Date();
+      var d=new Date(now.getFullYear()-5,now.getMonth(),now.getDate());
+      setTimeRange(d.toISOString().slice(0,10),now.toISOString().slice(0,10));
     });
 
-    // Auto-update on date change
-    document.getElementById("histDateFrom").addEventListener("change",function(){
+    // Date input change → sync
+    document.getElementById("tsDateFrom").addEventListener("change",function(){
       var from=this.value;
-      var to=document.getElementById("histDateTo").value;
-      if(from&&to&&from<=to){
-        timeRange={start:from,end:to};
-        applyHeatmap(from,to);
-      }
+      var to=document.getElementById("tsDateTo").value;
+      if(from&&to&&from<=to){setTimeRange(from,to);}
     });
-    document.getElementById("histDateTo").addEventListener("change",function(){
-      var from=document.getElementById("histDateFrom").value;
+    document.getElementById("tsDateTo").addEventListener("change",function(){
+      var from=document.getElementById("tsDateFrom").value;
       var to=this.value;
-      if(from&&to&&from<=to){
-        timeRange={start:from,end:to};
-        applyHeatmap(from,to);
-      }
+      if(from&&to&&from<=to){setTimeRange(from,to);}
+    });
+
+    updateTimeSliderInfo();
+  }
+}
+
+function setTimeRange(from, to){
+  timeRange.start=from;
+  timeRange.end=to;
+  currentFilters.dateFrom=from;
+  currentFilters.dateTo=to;
+
+  // Sync all time inputs
+  var elFrom=document.getElementById("tsDateFrom");
+  var elTo=document.getElementById("tsDateTo");
+  var fFrom=document.getElementById("dateFrom");
+  var fTo=document.getElementById("dateTo");
+  if(elFrom)elFrom.value=from;
+  if(elTo)elTo.value=to;
+  if(fFrom)fFrom.value=from;
+  if(fTo)fTo.value=to;
+
+  applyFilters();
+  refreshProvinceStyles();
+  updateTimeSliderInfo();
+}
+
+function updateTimeSliderInfo(){
+  var info=document.getElementById("tsInfo");
+  if(!info)return;
+  var count=activeIncidents.filter(function(d){
+    return d.date>=timeRange.start&&d.date<=timeRange.end;
+  }).length;
+  info.textContent='匹配: '+count+' 条事件';
+}
+
+// Sync from filter panel back to time slider
+function syncTimeSliderFromFilters(){
+  if(currentFilters.dateFrom&&currentFilters.dateTo){
+    timeRange.start=currentFilters.dateFrom;
+    timeRange.end=currentFilters.dateTo;
+  }
+  var elFrom=document.getElementById("tsDateFrom");
+  var elTo=document.getElementById("tsDateTo");
+  if(elFrom)elFrom.value=timeRange.start;
+  if(elTo)elTo.value=timeRange.end;
+  updateTimeSliderInfo();
+}
+
+// ===================== DRAWER STACK =====================
+
+var drawerStack=[];
+
+function pushDrawer(titleHtml, bodyHtml, contextId){
+  var overlay=document.getElementById("subOverlay");
+  var panel=document.getElementById("subPanel");
+  var title=document.getElementById("subPanelTitle");
+  var body=document.getElementById("subPanelBody");
+
+  // Save current state to stack
+  if(overlay.classList.contains("open")){
+    drawerStack.push({
+      title:title.innerHTML,
+      body:body.innerHTML,
+      contextId:contextId||""
     });
   }
-  wrap.style.display="block";
+
+  title.innerHTML=titleHtml;
+  body.innerHTML=bodyHtml;
+  overlay.classList.add("open");
+  panel.classList.add("open");
+
+  updateBackButton();
 }
 
-function applyHeatmap(dateFrom, dateTo){
-  // Remove existing heat layer
-  if(heatLayer){map.removeLayer(heatLayer);heatLayer=null;}
-
-  // Filter incidents: overlap logic — incident falls within range if
-  // incident.date is between dateFrom and dateTo
-  var filtered=activeIncidents.filter(function(d){
-    return d.date>=dateFrom && d.date<=dateTo;
-  });
-
-  var info=document.getElementById("histInfo");
-  if(info)info.textContent="匹配事件: "+filtered.length+" 条 ("+dateFrom+" ~ "+dateTo+")";
-
-  if(filtered.length===0){
-    showToast("所选时间范围内无冲突事件");
-    return;
-  }
-
-  // Build heatmap points — weight by fatalities
-  var heatPoints=filtered.map(function(d){
-    var intensity=Math.min(1.0, (d.fatalities||0)/60 + 0.15);
-    return [d.lat, d.lng, intensity];
-  });
-
-  // Use simple canvas-based heat layer (no external dependency)
-  heatLayer=createCanvasHeatLayer(heatPoints);
-  map.addLayer(heatLayer);
-
-  // Update province layer fill based on filtered data
-  if(provinceLayer){
-    provinceLayer.eachLayer(function(layer){
-      var name=layer.feature.properties.name;
-      var count=filtered.filter(function(d){return d.province===name;}).length;
-      var alpha=Math.min(0.55, 0.05 + count*0.012);
-      layer.setStyle({
-        fillColor: count>0 ? "#8b0000" : "#e8dcc8",
-        fillOpacity: alpha,
-        weight: 0.8,
-        color: "#999",
-        opacity: 0.55
-      });
-    });
+function popDrawer(){
+  if(drawerStack.length>0){
+    var prev=drawerStack.pop();
+    var title=document.getElementById("subPanelTitle");
+    var body=document.getElementById("subPanelBody");
+    title.innerHTML=prev.title;
+    body.innerHTML=prev.body;
+    updateBackButton();
+  }else{
+    var overlay=document.getElementById("subOverlay");
+    var panel=document.getElementById("subPanel");
+    overlay.classList.remove("open");
+    panel.classList.remove("open");
+    updateBackButton();
   }
 }
 
-function createCanvasHeatLayer(points){
-  // Custom canvas-based heat layer for Leaflet
-  var HeatCanvasLayer=L.Layer.extend({
-    initialize:function(pts,options){
-      this._points=pts;
-      L.setOptions(this,options);
-    },
-    onAdd:function(map){
-      this._map=map;
-      if(!this._canvas)this._initCanvas();
-      map.getPanes().overlayPane.appendChild(this._canvas);
-      map.on("moveend",this._draw,this);
-      map.on("zoomend",this._draw,this);
-      this._draw();
-    },
-    onRemove:function(map){
-      map.getPanes().overlayPane.removeChild(this._canvas);
-      map.off("moveend",this._draw,this);
-      map.off("zoomend",this._draw,this);
-    },
-    _initCanvas:function(){
-      this._canvas=document.createElement("canvas");
-      this._canvas.style.position="absolute";
-      this._canvas.style.pointerEvents="none";
-      this._canvas.style.opacity="0.7";
-      this._ctx=this._canvas.getContext("2d");
-    },
-    _draw:function(){
-      if(!this._map)return;
-      var size=this._map.getSize();
-      this._canvas.width=size.x;
-      this._canvas.height=size.y;
-      this._canvas.style.width=size.x+"px";
-      this._canvas.style.height=size.y+"px";
-      this._canvas.style.left="0px";
-      this._canvas.style.top="0px";
-
-      var ctx=this._ctx;
-      ctx.clearRect(0,0,size.x,size.y);
-
-      var points=this._points;
-      var radius=28;
-
-      for(var i=0;i<points.length;i++){
-        var pt=points[i];
-        var pos=this._map.latLngToContainerPoint([pt[0],pt[1]]);
-        var intensity=pt[2]||0.2;
-
-        // Red gradient based on intensity
-        var r=Math.floor(139 + (intensity*116));  // 139→255
-        var g=Math.floor(intensity*20);            // 0→20
-        var b=Math.floor(intensity*10);            // 0→10
-        var alpha=intensity*0.55;
-
-        var grad=ctx.createRadialGradient(pos.x,pos.y,0,pos.x,pos.y,radius);
-        grad.addColorStop(0,"rgba("+r+","+g+","+b+","+alpha+")");
-        grad.addColorStop(0.5,"rgba("+r+","+g+","+b+","+(alpha*0.4)+")");
-        grad.addColorStop(1,"rgba("+r+","+g+","+b+",0)");
-
-        ctx.beginPath();
-        ctx.arc(pos.x,pos.y,radius,0,Math.PI*2);
-        ctx.fillStyle=grad;
-        ctx.fill();
-      }
-    }
-  });
-
-  return new HeatCanvasLayer(points);
-}
-
-// Update heatmap when filters change (in historical mode)
-function refreshHeatmapIfActive(){
-  if(currentViewMode==="historical"){
-    applyHeatmap(timeRange.start, timeRange.end);
+function updateBackButton(){
+  var btn=document.getElementById("subPanelBack");
+  if(!btn)return;
+  if(drawerStack.length>0){
+    btn.style.display="flex";
+    btn.title="返回上一级 ("+drawerStack.length+"级)";
+  }else{
+    btn.style.display="none";
   }
 }
 
-function buildMapLegend(){
-  var div=document.createElement("div");
-  div.className="map-legend";
-  div.innerHTML='<h4>冲突类型 / Type</h4>'+
-    Object.entries(CONFLICT_TYPES).map(([k,v])=>'<div class="leg-row"><span class="leg-dot" style="background:'+v.color+'"></span>'+v.zh+'</div>').join("")+
-    '<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--hair);font-size:10px;color:var(--ink3);line-height:1.6;">'+
-    '<b>点击省份</b> → 查看该省冲突概况<br>标记大小 = 严重等级<br>'+
-    '<span style="display:inline-block;width:10px;height:10px;border:2px solid #5a4a3a;background:rgba(232,220,200,.5);margin-right:4px;"></span> 省界 '+
-    '<span style="display:inline-block;width:10px;height:10px;border:2px solid #6b1a1a;background:rgba(201,139,122,.24);margin-right:4px;"></span> 有冲突省份 '+
-    '<span style="display:inline-block;width:10px;height:10px;border:2.5px solid #1a0a00;background:rgba(212,160,138,.5);margin-right:4px;"></span> 已选省份</div>';
-  document.querySelector(".map-wrap").appendChild(div);
-}
+// ===================== MARKERS =====================
 
 function createMarker(inc){
-  const sev=SEVERITY_LEVELS[inc.severity];
-  const type=CONFLICT_TYPES[inc.type];
-  const marker=L.circleMarker([inc.lat,inc.lng],{
+  var sev=SEVERITY_LEVELS[inc.severity];
+  var type=CONFLICT_TYPES[inc.type];
+  var marker=L.circleMarker([inc.lat,inc.lng],{
     radius: sev.size + 3,
     fillColor: type.color,
     color: "#1a0a00",
@@ -474,50 +399,53 @@ function createMarker(inc){
     fillOpacity: 0.82
   });
 
-  marker.bindPopup(`
-    <div style="max-width:280px;">
-      <div style="display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap;">
-        <span class="sp-badge" style="background:${type.color};color:#fff;">${type.zh}</span>
-        <span class="sp-badge" style="background:${sev.color};color:#fff;">${sev.zh}</span>
-        ${inc.verified?'<span class="sp-badge" style="background:var(--green);color:#fff;">已验证</span>':''}
-      </div>
-      <div style="font-weight:700;font-size:13px;margin-bottom:3px;">${inc.title}</div>
-      <div style="font-size:10px;color:var(--ink3);line-height:1.5;">${inc.province||''} &middot; ${inc.city} &middot; ${inc.country}</div>
-      <div style="font-size:10px;color:var(--ink3);line-height:1.5;">${inc.date} &middot; ${inc.actor1} vs ${inc.actor2}</div>
-      <div style="font-size:10px;color:var(--ink3);line-height:1.5;">死亡: <b style="color:var(--red)">${inc.fatalities||0}</b></div>
-      <button onclick="if(window.openDrawer)window.openDrawer('${inc.id}')" style="margin-top:6px;font-size:10px;padding:4px 12px;border-radius:2px;cursor:pointer;background:var(--accent);color:var(--paper1);border:none;font-weight:600;font-family:var(--zh);">查看详情 &rarr;</button>
-    </div>
-  `);
+  marker.bindPopup(
+    '<div style="max-width:280px;">'+
+      '<div style="display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap;">'+
+        '<span class="sp-badge" style="background:'+type.color+';color:#fff;">'+type.zh+'</span>'+
+        '<span class="sp-badge" style="background:'+sev.color+';color:#fff;">'+sev.zh+'</span>'+
+        (inc.verified?'<span class="sp-badge" style="background:var(--green);color:#fff;">已验证</span>':'')+
+      '</div>'+
+      '<div style="font-weight:700;font-size:13px;margin-bottom:3px;">'+inc.title+'</div>'+
+      '<div style="font-size:10px;color:var(--ink3);line-height:1.5;">'+inc.province+' &middot; '+inc.city+' &middot; '+inc.country+'</div>'+
+      '<div style="font-size:10px;color:var(--ink3);line-height:1.5;">'+inc.date+' &middot; '+inc.actor1+' vs '+inc.actor2+'</div>'+
+      '<div style="font-size:10px;color:var(--ink3);line-height:1.5;">死亡: <b style="color:var(--red)">'+(inc.fatalities||0)+'</b></div>'+
+      '<button onclick="if(window.openDrawer)window.openDrawer(\''+inc.id+'\')" style="margin-top:6px;font-size:10px;padding:4px 12px;border-radius:2px;cursor:pointer;background:var(--accent);color:var(--paper1);border:none;font-weight:600;font-family:var(--zh);">查看详情 &rarr;</button>'+
+    '</div>'
+  );
   marker.incidentId=inc.id;
-  marker.on("click",()=>{if(window.openDrawer)window.openDrawer(inc.id);});
+  marker.on("click",function(){if(window.openDrawer)window.openDrawer(inc.id);});
   return marker;
 }
 
 function renderMarkers(){
   markerCluster.clearLayers();
-  activeIncidents.forEach(inc=>{
+  activeIncidents.forEach(function(inc){
     markerCluster.addLayer(createMarker(inc));
   });
   if(window.updateEventList)window.updateEventList();
 
-  // Update province layer fill colors based on active filters
-  if(provinceLayer && currentViewMode!=="historical"){
-    provinceLayer.eachLayer(function(layer){
-      var name=layer.feature.properties.name;
-      var hasIncidents=activeIncidents.some(function(d){return d.province===name;});
-      layer.setStyle({
-        fillColor: hasIncidents?"#c98b7a":"#e8dcc8",
-        fillOpacity: hasIncidents?0.16:0.06,
-        color: hasIncidents?"#6b1a1a":"#5a4a3a"
-      });
-    });
-  }
+  refreshProvinceStyles();
 }
 
 function flyToIncident(id){
-  const inc=INCIDENTS.find(d=>d.id===id);
+  var inc=INCIDENTS.find(function(d){return d.id===id;});
   if(inc){
     map.flyTo([inc.lat,inc.lng],8,{duration:1.2});
-    setTimeout(()=>{if(window.openDrawer)window.openDrawer(inc.id);},1300);
+    setTimeout(function(){if(window.openDrawer)window.openDrawer(inc.id);},1300);
   }
+}
+
+// ===================== MAP LEGEND =====================
+
+function buildMapLegend(){
+  var div=document.createElement("div");
+  div.className="map-legend";
+  div.innerHTML='<h4>冲突类型 / Type</h4>'+
+    Object.entries(CONFLICT_TYPES).map(function(e){return '<div class="leg-row"><span class="leg-dot" style="background:'+e[1].color+'"></span>'+e[1].zh+'</div>';}).join("")+
+    '<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--hair);font-size:10px;color:var(--ink3);line-height:1.6;">'+
+    '<b>点击省份</b> → 查看省份概况<br>点击标记 → 查看事件详情<br>'+
+    '<span style="display:inline-block;width:10px;height:10px;border:2px solid #5a0000;background:rgba(139,32,32,.24);margin-right:4px;"></span> 时段内有冲突 '+
+    '<span style="display:inline-block;width:10px;height:10px;border:2.5px solid #1a0a00;background:rgba(212,160,138,.5);margin-right:4px;"></span> 已选省份</div>';
+  document.querySelector(".map-wrap").appendChild(div);
 }

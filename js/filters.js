@@ -28,17 +28,26 @@ function applyFilters(){
   renderMarkers();
   if(window.updateTimeline)window.updateTimeline();
   if(window.updateStats)window.updateStats();
+  if(window.syncTimeSliderFromFilters)window.syncTimeSliderFromFilters();
   var fc=document.getElementById("filterCount");if(fc)fc.textContent=activeIncidents.length+" 条";
   var pc=document.getElementById("provCount");if(pc)pc.textContent=activeIncidents.length+" 条";
+}
+
+function selectAllTime(){
+  var df=document.getElementById("dateFrom");
+  var dt=document.getElementById("dateTo");
+  if(df)df.value="2020-01-01";
+  if(dt)dt.value=new Date().toISOString().slice(0,10);
+  applyFilters();
 }
 
 function resetFilters(){
   document.querySelectorAll("#filterTypes .chip.on,#filterSeverity .chip.on,#filterActors .chip.on").forEach(function(c){c.classList.remove("on");});
   var selP=document.getElementById("filterProvince");if(selP)selP.value="";
-  var df=document.getElementById("dateFrom");if(df)df.value="";
-  var dt=document.getElementById("dateTo");if(dt)dt.value="";
+  var df=document.getElementById("dateFrom");if(df)df.value=timeRange.start||"";
+  var dt=document.getElementById("dateTo");if(dt)dt.value=timeRange.end||"";
   var as=document.getElementById("actorSearch");if(as)as.value="";filterActors("");
-  currentFilters={types:new Set(),severity:new Set(),actors:new Set(),province:"",dateFrom:"",dateTo:""};
+  currentFilters={types:new Set(),severity:new Set(),actors:new Set(),province:"",dateFrom:timeRange.start||"",dateTo:timeRange.end||""};
   activeIncidents=[...INCIDENTS];
   renderMarkers();
   if(window.updateTimeline)window.updateTimeline();
@@ -240,3 +249,4 @@ window.showActorBrief=showActorBrief;
 window.selectAll=selectAll;
 window.invertSelection=invertSelection;
 window.filterActors=filterActors;
+window.selectAllTime=selectAllTime;
