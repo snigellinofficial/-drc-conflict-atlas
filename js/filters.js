@@ -249,10 +249,13 @@ function initFilterUI(){
   actorCount.textContent=allActors.length+" 个行为体";
   actorDiv.appendChild(actorCount);
 
-  // Default: all actor chips selected
+  // Default: all type, severity, and actor chips selected
   setTimeout(function(){
+    document.querySelectorAll("#filterTypes .chip").forEach(function(c){c.classList.add("on");});
+    document.querySelectorAll("#filterSeverity .chip").forEach(function(c){c.classList.add("on");});
     document.querySelectorAll("#filterActors .chip.actor-chip").forEach(function(c){c.classList.add("on");});
     updateFilterState();
+    applyFilters();
   },100);
 }
 

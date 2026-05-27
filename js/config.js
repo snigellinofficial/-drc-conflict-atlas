@@ -153,13 +153,67 @@ const ACTOR_PROFILES = {
     desc: "伊斯兰国中非省(ISCAP)是伊斯兰国(ISIS)在非洲中部的分支，ADF是其核心组成部分。ISCAP于2019年首次被ISIS中央媒体提及，此后频繁声称对刚果(金)和乌干达境内的袭击事件负责。ISCAP也活跃于莫桑比克德尔加杜角省。该组织善于利用社交媒体进行宣传，以期扩大国际影响力。",
     wiki: "https://en.wikipedia.org/wiki/Islamic_State_%E2%80%93_Central_Africa_Province",
     sources: ["UN Security Council reports", "Bridgeway Foundation", "ACLED"]
+  },
+  "Mai-Mai": {
+    name: "Mai-Mai / Local Defense Militias",
+    zh: "Mai-Mai（地方自卫民兵联盟）",
+    type: "地方民兵（多派系）",
+    active_since: "1990s",
+    region: "南基伍省、北基伍省、坦噶尼喀省、马涅马省",
+    strength: "各派系总计10,000–20,000人",
+    allies: "部分派系与FARDC合作",
+    opponents: "FDLR、M23、其他Mai-Mai派系",
+    desc: "Mai-Mai是对刚果(金)东部数十个地方民兵组织的统称。这些组织通常基于族群或社区组建，声称保护本地民众免受外来武装侵害。Mai-Mai各派系之间关系复杂，有些与FARDC合作，有些则与其他武装结盟或保持独立。主要派系包括Mai-Mai Yakutumba、Mai-Mai Mazembe、Mai-Mai Apa na Pale等。部分Mai-Mai参与了2023年以来在北基伍省对抗M23的行动，组成Wazalendo联盟。",
+    wiki: "https://en.wikipedia.org/wiki/Mai-Mai",
+    sources: ["UN Group of Experts", "International Crisis Group", "Rift Valley Institute"]
+  },
+  "RDF": {
+    name: "RDF / Rwanda Defence Force",
+    zh: "卢旺达国防军（RDF）",
+    type: "国家正规军",
+    active_since: "1994",
+    region: "卢旺达及刚果(金)东部边境",
+    strength: "约33,000人",
+    allies: "",
+    opponents: "FDLR",
+    desc: "卢旺达国防军(RDF)是卢旺达的国家军队。自1990年代以来，RDF（及其前身RPF/RPA）多次介入刚果(金)东部冲突，官方理由为打击卢旺达种族大屠杀后逃往刚果(金)的FDLR武装。联合国专家报告和多方证据显示RDF为M23反政府武装提供物资、训练和兵力支持，卢旺达政府坚决否认。刚果(金)政府多次指控卢旺达通过支持M23掠夺刚果(金)东部的矿产资源。",
+    wiki: "https://en.wikipedia.org/wiki/Rwanda_Defence_Force",
+    sources: ["UN Group of Experts (2023, 2024)", "Human Rights Watch", "Congo Research Group"]
+  },
+  "UPDF": {
+    name: "UPDF / Uganda People's Defence Force",
+    zh: "乌干达人民国防军（UPDF）",
+    type: "国家正规军",
+    active_since: "1995",
+    region: "乌干达及刚果(金)东部边境（北基伍省、伊图里省）",
+    strength: "约45,000–50,000人",
+    allies: "FARDC",
+    opponents: "ADF、ISCAP",
+    desc: "乌干达人民国防军(UPDF)是乌干达的国家军队。自2021年11月起，UPDF与FARDC在北基伍省和伊图里省发起代号'Shujaa'的联合军事行动，旨在打击ADF/ISCAP武装。UPDF在刚果(金)东部的存在引发了一定争议，部分民间团体对其历史角色表示担忧（UPDF在1990-2000年代曾卷入刚果冲突）。乌干达政府强调此次行动是应刚果(金)政府邀请。",
+    wiki: "https://en.wikipedia.org/wiki/Uganda_People%27s_Defence_Force",
+    sources: ["UN Security Council reports", "International Crisis Group"]
+  },
+  "LRA": {
+    name: "LRA / Lord's Resistance Army",
+    zh: "上帝抵抗军（LRA）",
+    type: "反政府武装/邪教武装",
+    active_since: "1987",
+    region: "上韦莱省、下韦莱省（前活动区）；现主要在中非共和国",
+    strength: "估计100–500人（残部）",
+    allies: "无",
+    opponents: "FARDC、UPDF、非洲联盟区域特遣部队",
+    desc: "上帝抵抗军(LRA)是由约瑟夫·科尼(Joseph Kony)领导的极端主义武装组织，起源于乌干达北部。LRA以极端暴力、绑架儿童充当士兵和性奴而臭名昭著。2010年代被乌干达军方和美国顾问支持的非洲联盟部队驱逐出刚果(金)后，LRA残余势力目前主要在中非共和国东部活动，对上韦莱省的威胁已显著降低，但偶有零星袭击。",
+    wiki: "https://en.wikipedia.org/wiki/Lord%27s_Resistance_Army",
+    sources: ["UN Security Council reports", "HRW", "Crisis Tracker - LRA"]
   }
 };
 
 /* --- 数据源 --- */
 const DATA_SOURCES = {
-  "ACLED":    {url:"https://acleddata.com/",     desc:"武装冲突地点与事件数据"},
-  "GDELT":    {url:"https://www.gdeltproject.org/", desc:"全球事件数据库"},
-  "UCDP":     {url:"https://ucdp.uu.se/",        desc:"乌普萨拉冲突数据"},
-  "ReliefWeb":{url:"https://reliefweb.int/",      desc:"联合国人道事务协调厅"}
+  "ACLED":    {url:"https://acleddata.com/",     desc:"武装冲突地点与事件数据（主要来源）"},
+  "GDELT":    {url:"https://www.gdeltproject.org/", desc:"全球事件数据库（交叉验证）"},
+  "UCDP":     {url:"https://ucdp.uu.se/",        desc:"乌普萨拉冲突数据（学术验证）"},
+  "ReliefWeb":{url:"https://reliefweb.int/",      desc:"联合国人道事务协调厅"},
+  "UN News":  {url:"https://news.un.org/",        desc:"联合国新闻"},
+  "Reuters":  {url:"https://www.reuters.com/",    desc:"路透社"}
 };

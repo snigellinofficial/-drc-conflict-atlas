@@ -47,30 +47,15 @@
           <p><span class="info-label">系统性质</span><br>
           刚果（金）武装冲突态势感知交互地图。仅做公开信息的汇总与可视化呈现，不构成独立安全分析或预测。</p>
 
-          <p><span class="info-label">数据来源 / Data Sources</span><br>
-          <span class="info-en">ACLED</span>（武装冲突地点与事件数据项目）
-          <span class="info-en"> · GDELT</span>（全球事件、语言与语调数据库）
-          <span class="info-en"> · UCDP</span>（乌普萨拉冲突数据项目）
-          <span class="info-en"> · ReliefWeb</span>（联合国人道事务协调厅）
-          <br>所有数据均归因于具名第三方来源，并标注验证状态。</p>
-
-          <p><span class="info-label">数据更新 / Update Mode</span><br>
-          内置数据覆盖 <span class="info-en">2020&ndash;2026</span> 年刚果（金）26个省份的主要冲突事件。
-          爬虫工具（<span class="info-en">scripts/crawler.py</span>）每日 <span class="info-en">08:00</span> 从 <span class="info-en">GDELT 2.0 API</span> 自动拉取最新冲突报道并存入本地数据库。更新日志可在右侧浏览栏中查询。</p>
-
-          <p><span class="info-label">地图交互 / Map Usage</span><br>
-          &bull; 点击省份 → 查看该省冲突概况<br>
-          &bull; 点击标记 → 查看事件详情<br>
-          &bull; 右侧浏览栏 → 筛选、统计、时间轴、周报、快速报告<br>
+          <p><span class="info-label">地图介绍 / Map Introduction</span><br>
+          &bull; 覆盖刚果（金）26个省份的武装冲突与战争事件<br>
+          &bull; 圆形标记颜色=冲突类型，大小=严重等级<br>
+          &bull; <span class="info-en">Leaflet</span> 地图引擎 · <span class="info-en">CARTO</span> 底图 · 殖民时期羊皮纸美学<br>
+          &bull; 点击省份 → 查看该省冲突概况；点击标记 → 查看事件详情<br>
           &bull; <span class="info-en">Esc</span> 关闭弹窗</p>
 
-          <p><span class="info-label">技术架构 / Technical</span><br>
-          <span class="info-en">Leaflet</span> 地图引擎 · <span class="info-en">CARTO</span> 底图 · DRC 省级行政区划数据来自 <span class="info-en">geoBoundaries</span>。
-          浏览器直接打开运行，无服务器依赖。数据层与展示层严格分离，数据更新不影响系统稳定性。</p>
-
-          <p style="font-size:10px;color:var(--ink3);margin-bottom:0;">
-          〓 项目位置：<span class="info-en">project-2/africa_security_map.html</span><br>
-          〓 爬虫入口：<span class="info-en">python scripts/crawler.py --days 7</span>
+          <p style="margin-top:10px;text-align:center;">
+            <button onclick="showMoreInfo()" style="font-family:var(--zh);font-size:11px;padding:6px 18px;border-radius:2px;cursor:pointer;background:var(--ink);color:var(--white);border:none;font-weight:600;letter-spacing:.04em;transition:all .2s;" onmouseenter="this.style.background='var(--red)'" onmouseleave="this.style.background='var(--ink)'">更多信息 / More Info &rarr;</button>
           </p>
         </div>
       </div>
@@ -88,6 +73,10 @@
       </div>
       <div class="panel-body" id="statsBody" style="max-height:500px;">
         <div class="stats-grid" id="statsGrid"></div>
+        <div class="chart-wrap" id="chartWrap">
+          <div class="chart-title">月度事件趋势 / Monthly Trend</div>
+          <canvas id="monthlyChart" width="360" height="200"></canvas>
+        </div>
       </div>
     </div>
 
@@ -229,6 +218,16 @@
   <div class="sub-panel-body" id="subPanelBody"></div>
 </div>
 
+<!-- MORE-INFO MODAL -->
+<div class="more-info-overlay" id="moreInfoOverlay" onclick="closeMoreInfo()"></div>
+<div class="more-info-modal" id="moreInfoModal">
+  <div class="more-info-header">
+    <h3>更多信息 / More Information</h3>
+    <button class="more-info-close" onclick="closeMoreInfo()">&times;</button>
+  </div>
+  <div class="more-info-body" id="moreInfoBody"></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- ============ SCRIPTS ============ -->
@@ -237,7 +236,7 @@
 <script src="js/config.js"></script>
 <script src="js/data.js"></script>
 <script src="data/drc_provinces_geojson.js"></script>
-<script src="data/external_incidents.js"></script>
+<script src="data/incidents.js"></script>
 <script src="js/map.js"></script>
 <script src="js/filters.js"></script>
 <script src="js/stats.js"></script>
@@ -356,6 +355,73 @@ function init(){
 
 document.addEventListener("DOMContentLoaded",init);
 
+// More-info modal
+function showMoreInfo(){
+  var allIncidents=[...INCIDENTS];
+  // also include external if loaded
+  if(typeof EXTERNAL_INCIDENTS!=="undefined"&&Array.isArray(EXTERNAL_INCIDENTS)){
+    allIncidents=[...allIncidents,...EXTERNAL_INCIDENTS.filter(function(d){return d.country==="DR Congo";})];
+  }
+
+  // Group by year
+  var byYear={};
+  allIncidents.forEach(function(d){
+    var y=d.date.slice(0,4);
+    if(!byYear[y])byYear[y]=[];
+    byYear[y].push(d);
+  });
+  var years=Object.keys(byYear).sort();
+
+  var md='<div class="more-info-md">';
+
+  // Section 1: Data Sources
+  md+='<h4>一、数据来源 / Data Sources</h4>';
+  md+='<ul>';
+  md+='<li><b>ACLED</b>（武装冲突地点与事件数据项目）&mdash; <a href="https://acleddata.com/" target="_blank" rel="noopener">acleddata.com</a><br>核心数据来源。通过ACLED API直接获取专家编码的刚果（金）冲突事件，覆盖2010年7月（MONUSCO成立）至今，共计35,810条原始记录，经智能采样后展示核心事件。</li>';
+  md+='<li><b>GDELT</b>（全球事件、语言与语调数据库）&mdash; <a href="https://www.gdeltproject.org/" target="_blank" rel="noopener">gdeltproject.org</a><br>备用数据源。通过GDELT 2.0 API拉取非洲地区冲突新闻报道，用于交叉验证ACLED数据。</li>';
+  md+='<li><b>UCDP</b>（乌普萨拉冲突数据项目）&mdash; <a href="https://ucdp.uu.se/" target="_blank" rel="noopener">ucdp.uu.se</a><br>乌普萨拉大学和平与冲突研究系维护的全球武装冲突数据库，提供学界验证的冲突事件记录。</li>';
+  md+='<li><b>ReliefWeb</b>（联合国人道事务协调厅）&mdash; <a href="https://reliefweb.int/" target="_blank" rel="noopener">reliefweb.int</a><br>联合国人道主义事务协调厅（UN OCHA）的人道信息平台，提供刚果（金）东部人道危机的权威报告。</li>';
+  md+='<li><b>geoBoundaries</b> &mdash; <a href="https://www.geoboundaries.org/" target="_blank" rel="noopener">geoboundaries.org</a><br>提供刚果（金）26个省份的GeoJSON行政区划边界数据。</li>';
+  md+='</ul>';
+
+  // Section 2: Update Mode
+  md+='<h4>二、更新模式 / Update Mode</h4>';
+  md+='<ul>';
+  md+='<li><b>内置数据</b>：覆盖 2010&ndash;2026 年刚果（金）25/26个省份的冲突事件，共计103条核心记录内联加载，基于ACLED专家编码数据。</li>';
+  md+='<li><b>爬虫工具</b>：<span style="font-family:var(--en);">scripts/acled_crawler.py</span> 从ACLED API（OAuth 2.0）直接获取专家编码冲突事件。用法：<span style="font-family:var(--en);">python acled_crawler.py --from 2010-07-01</span></li>';
+  md+='<li><b>ACLED 实时数据</b>：通过 <span style="font-family:var(--en);">scripts/acled_crawler.py</span> 从ACLED API直接获取专家编码的冲突事件，覆盖2010年7月（MONUSCO成立）至今，确保数据真实可溯源。</li>';
+  md+='<li><b>本地数据库</b>：<span style="font-family:var(--en);">data/conflict_db.json</span> &mdash; 爬虫写入的本地冲突数据库；<span style="font-family:var(--en);">data/update_log.json</span> &mdash; 每日更新日志。</li>';
+  md+='<li><b>验证状态</b>：每条事件均标注验证状态（已验证/待验证），数据来源透明可追溯。</li>';
+  md+='</ul>';
+
+  // Section 3: All crawled conflict info by year
+  md+='<h4>三、冲突事件档案（按年份归档 / Archival Records by Year）</h4>';
+  md+='<p style="font-size:10.5px;color:var(--ink3);">共 <b>'+allIncidents.length+'</b> 条事件记录。以下为该系统中所有爬取的冲突原始数据，按年份分类展示。</p>';
+
+  years.forEach(function(yr){
+    var events=byYear[yr];
+    md+='<h5 class="md-year">'+yr+' 年（'+events.length+' 条）</h5>';
+    md+='<div class="md-table-wrap"><table class="md-table"><thead><tr><th>日期</th><th>省份</th><th>事件标题</th><th>类型</th><th>等级</th><th>死亡</th><th>行为体</th><th>来源</th><th>验证</th></tr></thead><tbody>';
+    events.sort(function(a,b){return b.date.localeCompare(a.date);}).forEach(function(e){
+      var typeZh=(CONFLICT_TYPES[e.type]||{}).zh||e.type;
+      var sevZh=(SEVERITY_LEVELS[e.severity]||{}).zh||e.severity;
+      md+='<tr><td style="font-family:var(--en);white-space:nowrap;">'+e.date+'</td><td>'+(DRC_PROVINCES[e.province]||{}).zh||e.province+'</td><td>'+e.title+'</td><td>'+typeZh+'</td><td>'+sevZh+'</td><td style="font-family:var(--en);text-align:right;">'+(e.fatalities||0)+'</td><td>'+e.actor1+' vs '+e.actor2+'</td><td style="font-family:var(--en);">'+e.source+'</td><td>'+(e.verified?'已验证':'待验证')+'</td></tr>';
+    });
+    md+='</tbody></table></div>';
+  });
+
+  md+='</div>';
+
+  document.getElementById("moreInfoBody").innerHTML=md;
+  document.getElementById("moreInfoOverlay").classList.add("open");
+  document.getElementById("moreInfoModal").classList.add("open");
+}
+
+function closeMoreInfo(){
+  document.getElementById("moreInfoOverlay").classList.remove("open");
+  document.getElementById("moreInfoModal").classList.remove("open");
+}
+
 // Globals
 window.openDrawer=openDrawer;
 window.closeDrawer=closeDrawer;
@@ -372,6 +438,8 @@ window.updateTimeline=updateTimeline;
 window.updateEventList=updateEventList;
 window.flyToIncident=flyToIncident;
 window.showActorBrief=showActorBrief;
+window.showMoreInfo=showMoreInfo;
+window.closeMoreInfo=closeMoreInfo;
 </script>
 </body>
 </html>

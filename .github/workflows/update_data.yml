@@ -1,10 +1,10 @@
-name: Daily Data Update
+name: Daily ACLED Data Update
 
 on:
   schedule:
-    # 每日 UTC 00:00 (北京时间 08:00)
-    - cron: '0 0 * * *'
-  workflow_dispatch:  # 手动触发
+    # Daily at UTC 00:00 (Beijing 08:00)
+    - cron: '7 0 * * *'
+  workflow_dispatch:  # Manual trigger
 
 jobs:
   update-data:
@@ -21,36 +21,24 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Generate incidents
-        run: |
-          python scripts/generate_incidents.py --count 200
+      - name: Install dependencies
+        run: pip install requests
 
-      - name: Regenerate JS data file
-        run: |
-          python -c "
-          import json
-          with open('data/conflict_db.json', 'r', encoding='utf-8') as f:
-              incidents = json.load(f)
-          js = 'var EXTERNAL_INCIDENTS = ' + json.dumps(incidents, ensure_ascii=False, indent=2) + ';\n'
-          with open('data/external_incidents.js', 'w', encoding='utf-8') as f:
-              f.write(js)
-          print(f'Written {len(incidents)} incidents to external_incidents.js')
-          "
-
-      - name: Try GDELT crawl (optional, may fail)
-        continue-on-error: true
-        run: |
-          python scripts/crawler.py --days 7 || echo "GDELT crawl skipped (rate limited)"
+      - name: Run ACLED auto-update
+        env:
+          ACLED_EMAIL: ${{ secrets.ACLED_EMAIL }}
+          ACLED_PASSWORD: ${{ secrets.ACLED_PASSWORD }}
+        run: python scripts/ci_update.py
 
       - name: Commit and push if changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/conflict_db.json data/external_incidents.js data/update_log.json 2>/dev/null || true
+          git add data/incidents.js data/incidents.json data/acled_drc_data.json 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "data: daily auto-update $(date +%Y-%m-%d)"
+            git commit -m "data: daily ACLED auto-update $(date +%Y-%m-%d)"
             git push
             echo "Changes committed and pushed"
           fi

@@ -1,0 +1,38 @@
+[
+  {
+    "time": "2026-05-27 18:04:03",
+    "message": "=================================================="
+  },
+  {
+    "time": "2026-05-27 18:04:03",
+    "message": "Starting auto-update..."
+  },
+  {
+    "time": "2026-05-27 18:04:03",
+    "message": "Refreshing access token using refresh_token..."
+  },
+  {
+    "time": "2026-05-27 18:04:05",
+    "message": "Token refreshed successfully!"
+  },
+  {
+    "time": "2026-05-27 18:04:05",
+    "message": "Fetching ACLED events: 2026-04-27 -> 2026-05-27"
+  },
+  {
+    "time": "2026-05-27 18:04:07",
+    "message": "Fetched 0 recent ACLED events"
+  },
+  {
+    "time": "2026-05-27 18:04:07",
+    "message": "New unique events: 0"
+  },
+  {
+    "time": "2026-05-27 18:04:07",
+    "message": "Update complete — 0 new events added"
+  },
+  {
+    "time": "2026-05-27 18:04:07",
+    "message": "=================================================="
+  }
+]

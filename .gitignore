@@ -20,6 +20,9 @@ Thumbs.db
 # Uncomment if data files are too large for GitHub:
 # data/conflict_db.json
 
+# ACLED credentials (never commit)
+data/acled_token.json
+
 # Crawler cache
 *.log
 

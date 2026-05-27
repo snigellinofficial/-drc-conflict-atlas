@@ -1,33 +1,27 @@
 """
-ACLED DRC Conflict Data Crawler
-================================
-从 ACLED API 拉取刚果(金)冲突事件数据。
-ACLED 提供专家编码的高质量冲突数据，比 GDELT 更可靠。
-
-注册: https://acleddata.com/ (免费, 非商业用途)
-API文档: https://acleddata.com/api-documentation
+ACLED DRC Conflict Data Crawler (OAuth 2.0)
+============================================
+从 ACLED API 拉取刚果(金)冲突事件数据，使用 OAuth 2.0 Bearer Token 认证。
+ACLED 提供专家编码的高质量冲突数据，覆盖 1997 年至今。
 
 用法:
-  python acled_crawler.py --email your@email.com --key YOUR_API_KEY
-  python acled_crawler.py --email your@email.com --key YOUR_KEY --from 2020-01-01
-  python acled_crawler.py --email your@email.com --key YOUR_KEY --schedule
+  python acled_crawler.py                          # 默认: 2010-07-01 → 今天
+  python acled_crawler.py --from 2010-07-01 --to 2026-05-27
+  python acled_crawler.py --token-file data/acled_token.json
 """
 
 import json, os, sys, time, hashlib
 from datetime import datetime, timedelta
-from urllib.request import urlopen, Request
-from urllib.parse import quote
-from urllib.error import HTTPError
+import requests
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
-DB_FILE = os.path.join(DATA_DIR, "conflict_db.json")
+DB_FILE = os.path.join(DATA_DIR, "acled_drc_data.json")
 LOG_FILE = os.path.join(DATA_DIR, "update_log.json")
-EXT_JS_FILE = os.path.join(DATA_DIR, "external_incidents.js")
 
-ACLED_API = "https://api.acleddata.com/acled/read"
+ACLED_API = "https://acleddata.com/api/acled/read"
 
-# ACLED event type → our schema type mapping
+# ACLED event type -> our schema type
 ACLED_TYPE_MAP = {
     "Battles": "battles",
     "Explosions/Remote violence": "remote-violence",
@@ -37,174 +31,251 @@ ACLED_TYPE_MAP = {
     "Riots": "strategic-dev",
 }
 
-def load_json(path, default=None):
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return default if default is not None else []
-
-def save_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-def make_id(incident):
-    raw = f"ACLED|{incident.get('date','')}|{incident.get('province','')}|{incident.get('title','')}"
-    return "ACLED-" + hashlib.md5(raw.encode()).hexdigest()[:10].upper()
+# ACLED admin1 -> our DRC 26 province names
+PROVINCE_MAP = {
+    "Kinshasa": "Kinshasa",
+    "Kongo Central": "Kongo-Central",
+    "Kwango": "Kwango",
+    "Kwilu": "Kwilu",
+    "Mai-Ndombe": "Mai-Ndombe",
+    "Equateur": "Équateur",
+    "Sud-Ubangi": "Sud-Ubangi",
+    "Nord-Ubangi": "Nord-Ubangi",
+    "Mongala": "Mongala",
+    "Tshuapa": "Tshuapa",
+    "Tshopo": "Tshopo",
+    "Bas-Uele": "Lower Uele",
+    "Haut-Uele": "Upper Uele",
+    "Ituri": "Ituri",
+    "Nord-Kivu": "North Kivu",
+    "Sud-Kivu": "South Kivu",
+    "Maniema": "Maniema",
+    "Sankuru": "Sankuru",
+    "Kasai": "Kasai",
+    "Kasai Central": "Central Kasai",
+    "Kasai Oriental": "Kasai-Oriental",
+    "Lomami": "Lomami",
+    "Haut-Lomami": "Haut-Lomami",
+    "Tanganyika": "Tanganyika",
+    "Haut-Katanga": "Haut-Katanga",
+    "Lualaba": "Lualaba",
+}
 
 def log(msg):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{ts}] {msg}")
 
+def load_token(token_file):
+    """Load access token from JSON file"""
+    with open(token_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data.get("access_token", "")
+
 def parse_acled_event(event):
-    """Convert ACLED event to our schema"""
+    """Convert ACLED event to our unified schema"""
     event_date = event.get("event_date", "")[:10]
     ctype = ACLED_TYPE_MAP.get(event.get("event_type", ""), "battles")
     fatalities = event.get("fatalities", 0) or 0
 
-    if fatalities >= 50:
+    # Severity: aligned with validate_data.py (critical>=40, high>=10)
+    if fatalities >= 40:
         severity = "critical"
-    elif fatalities >= 20:
+    elif fatalities >= 10:
         severity = "high"
-    elif fatalities >= 5:
+    elif fatalities >= 3:
         severity = "medium"
     else:
         severity = "low"
 
-    actor1 = event.get("actor1", "Unknown")
-    actor2 = event.get("actor2", "Unknown")
+    actor1 = event.get("actor1", "").strip()
+    actor2 = event.get("actor2", "").strip()
+    if not actor1:
+        actor1 = "Unknown"
+    if not actor2:
+        actor2 = "Unknown"
+
+    # Map province name
+    admin1 = event.get("admin1", "")
+    province = PROVINCE_MAP.get(admin1, admin1)
+
+    # Rich description from ACLED notes
+    notes = event.get("notes", "")
+    location = event.get("location", admin1)
+    if notes:
+        desc = f"{notes} (来源: ACLED, 事件ID: {event.get('event_id_cnty', '')})"
+    else:
+        desc = f"{actor1}与{actor2}在{location}发生冲突。数据来源ACLED。"
+
+    # Build title
+    if notes:
+        title = notes[:150]
+    else:
+        title = f"{actor1} vs {actor2} - {location}"
+
+    # Unique ID
+    raw = f"ACLED|{event_date}|{province}|{title}"
+    eid = "ACLED-" + hashlib.md5(raw.encode()).hexdigest()[:10].upper()
+
+    lat = float(event.get("latitude", 0) or 0)
+    lng = float(event.get("longitude", 0) or 0)
 
     return {
-        "id": make_id({"date": event_date, "province": event.get("admin1", ""), "title": event.get("notes", "")}),
+        "id": eid,
         "date": event_date,
         "country": "DR Congo",
-        "province": event.get("admin1", ""),
-        "city": event.get("location", ""),
-        "lat": float(event.get("latitude", 0)),
-        "lng": float(event.get("longitude", 0)),
+        "province": province,
+        "city": location,
+        "lat": lat,
+        "lng": lng,
         "type": ctype,
         "severity": severity,
-        "fatalities": fatalities,
+        "fatalities": int(fatalities),
         "actor1": actor1,
         "actor2": actor2,
-        "title": event.get("notes", f"{actor1} vs {actor2}")[:120],
-        "desc": f"ACLED事件: {event.get('notes', '')}. 数据来源ACLED, 事件编号{event.get('event_id_cnty', '')}",
+        "title": title,
+        "desc": desc,
         "source": "ACLED",
         "sourceUrl": f"https://acleddata.com/data/",
         "verified": True
     }
 
-def fetch_acled(email, key, start_date, end_date, limit=500):
-    """Fetch ACLED data for DRC in date range"""
-    params = (
-        f"key={key}"
-        f"&email={quote(email)}"
-        f"&country={quote('Democratic Republic of Congo')}"
-        f"&event_date={start_date}|{end_date}"
-        f"&event_date_where=BETWEEN"
-        f"&limit={limit}"
-    )
-    url = f"{ACLED_API}?{params}"
+def fetch_acled_page(token, start_date, end_date, page=1, limit=500):
+    """Fetch one page of ACLED data"""
+    params = {
+        "country": "Democratic Republic of Congo",
+        "event_date": f"{start_date}|{end_date}",
+        "event_date_where": "BETWEEN",
+        "limit": str(limit),
+        "page": str(page),
+    }
 
-    log(f"Fetching ACLED: {start_date} → {end_date}")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json",
+    }
+
     try:
-        req = Request(url, headers={"User-Agent": "DRCConflictMonitor/2.0"})
-        with urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        if data.get("status") == 200:
-            return data.get("data", [])
+        resp = requests.get(ACLED_API, params=params, headers=headers, timeout=60)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("status") == 200:
+                return data.get("data", [])
+            else:
+                log(f"API error: {data.get('errors', data)}")
+                return None
         else:
-            log(f"ACLED API error: {data.get('errors', data)}")
+            log(f"HTTP {resp.status_code}: {resp.text[:300]}")
             return None
-    except HTTPError as e:
-        log(f"HTTP {e.code}: {e.reason}")
-        return None
     except Exception as e:
         log(f"Fetch error: {e}")
         return None
 
-def crawl_acled(email, key, start_date="2020-01-01", end_date=None):
-    """Full crawl from ACLED API"""
+def crawl_all(token, start_date="2010-07-01", end_date=None, page_size=500):
+    """Full crawl from ACLED API with pagination"""
     if end_date is None:
         end_date = datetime.now().strftime("%Y-%m-%d")
 
-    log(f"=== ACLED爬取: {start_date} → {end_date} ===")
+    log(f"=== ACLED Full Crawl: {start_date} -> {end_date} ===")
 
-    events = fetch_acled(email, key, start_date, end_date, limit=0)
-    if events is None:
-        log("ACLED爬取失败")
-        return 0
+    all_events = []
+    page = 1
 
-    db = load_json(DB_FILE, [])
-    existing_ids = {item["id"] for item in db}
-    new_items = 0
+    while True:
+        log(f"  Fetching page {page}...")
+        events = fetch_acled_page(token, start_date, end_date, page, page_size)
 
-    for event in events:
-        incident = parse_acled_event(event)
-        if incident["id"] not in existing_ids:
-            db.append(incident)
-            existing_ids.add(incident["id"])
-            new_items += 1
+        if events is None:
+            log(f"  ERROR on page {page}, stopping.")
+            break
+
+        if len(events) == 0:
+            log(f"  No more data (page {page} returned 0).")
+            break
+
+        all_events.extend(events)
+        log(f"  Page {page}: {len(events)} events, total so far: {len(all_events)}")
+
+        if len(events) < page_size:
+            break
+
+        page += 1
+        time.sleep(0.5)  # polite rate limiting
+
+    log(f"=== Raw events fetched: {len(all_events)} ===")
+
+    # Convert to our schema
+    converted = []
+    seen_ids = set()
+    skipped_no_province = 0
+    skipped_no_coords = 0
+
+    for event in all_events:
+        inc = parse_acled_event(event)
+        # Skip if province not in our map
+        if inc["province"] not in PROVINCE_MAP.values():
+            skipped_no_province += 1
+            continue
+        # Dedup
+        if inc["id"] in seen_ids:
+            continue
+        seen_ids.add(inc["id"])
+        converted.append(inc)
+
+    log(f"After filtering: {len(converted)} events")
+    log(f"  Skipped (no province match): {skipped_no_province}")
+    log(f"  Duplicates removed: {len(all_events) - len(converted) - skipped_no_province}")
 
     # Sort by date desc
-    db.sort(key=lambda x: x["date"], reverse=True)
-    save_json(DB_FILE, db)
+    converted.sort(key=lambda x: x["date"], reverse=True)
 
-    # Regenerate JS file for file:// compatibility
-    js = "var EXTERNAL_INCIDENTS = " + json.dumps(db, ensure_ascii=False, indent=2) + ";\n"
-    with open(EXT_JS_FILE, "w", encoding="utf-8") as f:
-        f.write(js)
+    # Save to JSON
+    out_path = os.path.join(DATA_DIR, "acled_drc_data.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(converted, f, ensure_ascii=False, indent=2)
+    log(f"Saved {len(converted)} events to {out_path}")
 
-    # Update log
-    log_data = load_json(LOG_FILE, {"last_update": "", "total_fetched": 0, "entries": []})
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_data["last_update"] = now_str
-    log_data["total_fetched"] = len(db)
-    log_data["entries"].insert(0, {
-        "date": datetime.now().strftime("%Y-%m-%d"),
-        "time": now_str,
-        "status": "ok",
-        "new_items": new_items,
-        "total_items": len(db),
-        "summary": f"ACLED爬取 {start_date}→{end_date} · 新增{new_items}条 · DB共{len(db)}条"
-    })
-    log_data["entries"] = log_data["entries"][:90]
-    save_json(LOG_FILE, log_data)
+    # Stats
+    by_year = {}
+    by_type = {}
+    by_prov = {}
+    for inc in converted:
+        yr = inc["date"][:4]
+        by_year[yr] = by_year.get(yr, 0) + 1
+        by_type[inc["type"]] = by_type.get(inc["type"], 0) + 1
+        by_prov[inc["province"]] = by_prov.get(inc["province"], 0) + 1
 
-    log(f"=== ACLED完成: 新增{new_items}条, DB共{len(db)}条 ===")
-    return new_items
+    log(f"\nYearly distribution:")
+    for yr in sorted(by_year):
+        log(f"  {yr}: {by_year[yr]}")
+    log(f"\nType distribution:")
+    for t, c in sorted(by_type.items(), key=lambda x: -x[1]):
+        log(f"  {t}: {c}")
+    log(f"\nProvince coverage: {len(by_prov)}/26 provinces")
 
-def schedule_daily(email, key):
-    """Run daily at 08:00"""
-    log("ACLED调度模式: 每日08:00")
-    while True:
-        now = datetime.now()
-        next_run = now.replace(hour=8, minute=0, second=0, microsecond=0)
-        if now >= next_run:
-            next_run += timedelta(days=1)
-        wait = (next_run - now).total_seconds()
-        log(f"下次执行: {next_run.strftime('%Y-%m-%d %H:%M:%S')} ({wait/3600:.1f}h)")
-        time.sleep(wait)
-        try:
-            # Fetch last 7 days
-            start = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-            end = datetime.now().strftime("%Y-%m-%d")
-            crawl_acled(email, key, start, end)
-        except Exception as e:
-            log(f"调度失败: {e}")
+    return len(converted)
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="ACLED DRC冲突数据爬虫")
-    parser.add_argument("--email", type=str, required=True, help="ACLED注册邮箱")
-    parser.add_argument("--key", type=str, required=True, help="ACLED API密钥")
-    parser.add_argument("--from", dest="from_date", type=str, default="2020-01-01")
+    parser = argparse.ArgumentParser(description="ACLED DRC Conflict Data Crawler")
+    parser.add_argument("--from", dest="from_date", type=str, default="2010-07-01")
     parser.add_argument("--to", dest="to_date", type=str, default=None)
-    parser.add_argument("--schedule", action="store_true", help="每日08:00自动执行")
+    parser.add_argument("--token-file", type=str, default="data/acled_token.json")
+    parser.add_argument("--page-size", type=int, default=500)
     args = parser.parse_args()
 
-    if args.schedule:
-        schedule_daily(args.email, args.key)
-    else:
-        added = crawl_acled(args.email, args.key, args.from_date, args.to_date)
-        print(f"\n完成: 新增{added}条")
+    token_path = os.path.join(BASE_DIR, args.token_file)
+    if not os.path.exists(token_path):
+        log(f"ERROR: Token file not found: {token_path}")
+        log("Run get_acled_token.py first to obtain an OAuth token.")
+        sys.exit(1)
+
+    token = load_token(token_path)
+    if not token:
+        log("ERROR: Empty token in file")
+        sys.exit(1)
+
+    log(f"Token loaded ({len(token)} chars)")
+
+    added = crawl_all(token, args.from_date, args.to_date, args.page_size)
+    print(f"\nDone: {added} events saved.")
