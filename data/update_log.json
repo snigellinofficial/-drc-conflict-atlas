@@ -1,0 +1,30 @@
+{
+  "last_update": "2026-05-27 05:39:40",
+  "total_fetched": 5,
+  "entries": [
+    {
+      "date": "2026-05-27",
+      "time": "2026-05-27 05:39:40",
+      "status": "partial",
+      "new_items": 0,
+      "total_items": 5,
+      "summary": "历史爬取 2020-01-01→2026-05-27 · 77批 · 新增0条 · DB共5条 · 77个批次错误"
+    },
+    {
+      "date": "2026-05-27",
+      "time": "2026-05-27 03:36:56",
+      "status": "partial",
+      "new_items": 5,
+      "total_items": 5,
+      "summary": "爬取1天 · 新增5条 · 数据库共5条 · 4个错误"
+    },
+    {
+      "date": "2026-05-27",
+      "time": "2026-05-27 02:45:00",
+      "status": "ok",
+      "new_items": 0,
+      "total_items": 30,
+      "summary": "初始数据库建立 · 30条内置事件 · 涵盖DRC及周边11国 · 数据源: ACLED/GDELT/UCDP"
+    }
+  ]
+}

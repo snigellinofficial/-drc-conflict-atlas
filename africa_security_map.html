@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>刚果(金)冲突态势感知 · DRC Conflict Situational Awareness Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-seal">DRC</div>
+    <div>
+      <h1>刚果（金）冲突态势感知地图</h1>
+      <div class="sub">DRC Conflict Situational Awareness Atlas &mdash; since 2020</div>
+    </div>
+  </div>
+  <div class="quick-stats">
+    <div class="qstat"><div class="num" style="color:var(--red)" id="statTotal">--</div><div class="lbl">本月事件</div></div>
+    <div class="qstat"><div class="num" style="color:var(--orange)" id="statFatalities">--</div><div class="lbl">估计死亡</div></div>
+    <div class="qstat"><div class="num" style="color:var(--accent)" id="statActive">--</div><div class="lbl">战斗/交手</div></div>
+    <div class="qstat"><div class="num" style="color:var(--ink3)" id="statProvinces">--</div><div class="lbl">涉及省份</div></div>
+    <span style="font-size:10px;color:var(--ink3);margin-left:6px;"><span class="live-dot"></span>态势感知中</span>
+  </div>
+</header>
+
+<div class="viewmode-bar">
+  <span class="viewmode-label">视图模式 / View Mode</span>
+  <div class="viewmode-btns">
+    <button class="vm-btn active" data-mode="province" onclick="switchViewMode('province')">★ 省份视图<br><span class="vm-sub">Province View</span></button>
+    <button class="vm-btn" data-mode="current" onclick="switchViewMode('current')">⚔ 当前冲突<br><span class="vm-sub">Current Conflicts</span></button>
+    <button class="vm-btn" data-mode="historical" onclick="switchViewMode('historical')">⧖ 历史冲突<br><span class="vm-sub">Historical View</span></button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- MAP -->
+  <div class="map-wrap">
+    <div id="map"></div>
+
+    <!-- TOP-LEFT INFO PANEL -->
+    <div class="info-panel" id="infoPanel">
+      <div class="info-panel-header" id="infoPanelHeader" onclick="toggleInfoPanel()">
+        关于本系统 / About
+        <span id="infoArrow" style="font-family:var(--en);font-size:10px;">▾</span>
+      </div>
+      <div class="info-panel-body" id="infoPanelBody" style="max-height:500px;">
+        <div class="info-panel-body-inner">
+          <p><span class="info-label">系统性质</span><br>
+          刚果（金）武装冲突态势感知交互地图。仅做公开信息的汇总与可视化呈现，不构成独立安全分析或预测。</p>
+
+          <p><span class="info-label">数据来源 / Data Sources</span><br>
+          <span class="info-en">ACLED</span>（武装冲突地点与事件数据项目）
+          <span class="info-en"> · GDELT</span>（全球事件、语言与语调数据库）
+          <span class="info-en"> · UCDP</span>（乌普萨拉冲突数据项目）
+          <span class="info-en"> · ReliefWeb</span>（联合国人道事务协调厅）
+          <br>所有数据均归因于具名第三方来源，并标注验证状态。</p>
+
+          <p><span class="info-label">数据更新 / Update Mode</span><br>
+          内置数据覆盖 <span class="info-en">2020&ndash;2026</span> 年刚果（金）26个省份的主要冲突事件。
+          爬虫工具（<span class="info-en">scripts/crawler.py</span>）每日 <span class="info-en">08:00</span> 从 <span class="info-en">GDELT 2.0 API</span> 自动拉取最新冲突报道并存入本地数据库。更新日志可在右侧浏览栏中查询。</p>
+
+          <p><span class="info-label">地图交互 / Map Usage</span><br>
+          &bull; 点击省份 → 查看该省冲突概况<br>
+          &bull; 点击标记 → 查看事件详情<br>
+          &bull; 右侧浏览栏 → 筛选、统计、时间轴、周报、快速报告<br>
+          &bull; <span class="info-en">Esc</span> 关闭弹窗</p>
+
+          <p><span class="info-label">技术架构 / Technical</span><br>
+          <span class="info-en">Leaflet</span> 地图引擎 · <span class="info-en">CARTO</span> 底图 · DRC 省级行政区划数据来自 <span class="info-en">geoBoundaries</span>。
+          浏览器直接打开运行，无服务器依赖。数据层与展示层严格分离，数据更新不影响系统稳定性。</p>
+
+          <p style="font-size:10px;color:var(--ink3);margin-bottom:0;">
+          〓 项目位置：<span class="info-en">project-2/africa_security_map.html</span><br>
+          〓 爬虫入口：<span class="info-en">python scripts/crawler.py --days 7</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT BROWSING PANEL -->
+  <div class="right-panel" id="rightPanel">
+
+    <!-- 1. 统计概览 -->
+    <div class="panel-section">
+      <div class="panel-header" data-panel="statsBody">
+        <div class="ph-left"><span class="ph-icon">&#9901;</span><span class="ph-title">统计概览 / Statistics</span></div>
+        <span class="ph-arrow">&#9660;</span>
+      </div>
+      <div class="panel-body" id="statsBody" style="max-height:500px;">
+        <div class="stats-grid" id="statsGrid"></div>
+      </div>
+    </div>
+
+    <!-- 2. 筛选器 -->
+    <div class="panel-section">
+      <div class="panel-header" data-panel="filterBody">
+        <div class="ph-left"><span class="ph-icon">&#9776;</span><span class="ph-title">筛选器 / Filters</span></div>
+        <span class="ph-arrow">&#9660;</span>
+      </div>
+      <div class="panel-body" id="filterBody" style="max-height:800px;">
+        <div class="filter-wrap">
+          <div class="filter-row-header">
+            <span class="filter-label">冲突类型 / Type</span>
+            <span class="filter-label-en"><a href="javascript:selectAll('filterTypes')" style="color:var(--ink3);text-decoration:none;" title="全选/取消全选">全选</a> &middot; <a href="javascript:invertSelection('filterTypes')" style="color:var(--ink3);text-decoration:none;" title="反选">反选</a></span>
+          </div>
+          <div class="filter-row" id="filterTypes"></div>
+
+          <div class="filter-row-header" style="margin-top:10px;">
+            <span class="filter-label">严重等级 / Severity</span>
+            <span class="filter-label-en"><a href="javascript:selectAll('filterSeverity')" style="color:var(--ink3);text-decoration:none;" title="全选/取消全选">全选</a> &middot; <a href="javascript:invertSelection('filterSeverity')" style="color:var(--ink3);text-decoration:none;" title="反选">反选</a></span>
+          </div>
+          <div class="filter-row" id="filterSeverity"></div>
+
+          <div class="filter-row-header" style="margin-top:10px;">
+            <span class="filter-label">冲突参与组织 / Actor</span>
+            <span class="filter-label-en"><a href="javascript:selectAll('filterActors')" style="color:var(--ink3);text-decoration:none;" title="全选/取消全选">全选</a> &middot; <a href="javascript:invertSelection('filterActors')" style="color:var(--ink3);text-decoration:none;" title="反选">反选</a> &middot; 点击=选择  &circled;i;=详情</span>
+          </div>
+          <div id="filterActors"></div>
+
+          <span class="filter-label" style="margin-top:10px;">省份 / Province</span>
+          <select class="sel" id="filterProvince"><option value="">全部26省</option></select>
+
+          <span class="filter-label">时间范围 / Date Range</span>
+          <div class="date-row">
+            <input type="date" id="dateFrom" placeholder="2020-01-01" />
+            <input type="date" id="dateTo" placeholder="2026-12-31" />
+          </div>
+          <div class="btn-row">
+            <button class="btn primary" onclick="applyFilters()">应用筛选</button>
+            <button class="btn" onclick="resetFilters()">重置全部</button>
+          </div>
+          <div class="info-row">匹配事件: <span id="filterCount">0</span> 条</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. 事件列表 -->
+    <div class="panel-section">
+      <div class="panel-header" data-panel="eventListWrap">
+        <div class="ph-left"><span class="ph-icon">&#9776;</span><span class="ph-title">冲突事件列表 / Events</span></div>
+        <span class="ph-arrow">&#9660;</span>
+      </div>
+      <div class="panel-body" id="eventListWrap" style="max-height:400px;">
+        <div class="evt-controls">
+          <select id="evtSort" onchange="updateEventList()">
+            <option value="date-desc">最新优先</option>
+            <option value="date-asc">最早优先</option>
+            <option value="fatalities-desc">死亡最多</option>
+            <option value="severity">严重等级优先</option>
+          </select>
+          <select id="evtGroup" onchange="updateEventList()">
+            <option value="none">不分组</option>
+            <option value="year">按年份分组</option>
+            <option value="province">按省份分组</option>
+          </select>
+          <span style="font-size:10px;color:var(--ink3);margin-left:auto;" id="evtCount"></span>
+        </div>
+        <div class="evt-list" id="eventList"></div>
+        <div class="info-row" id="provCount" style="padding-bottom:6px;">&nbsp;</div>
+      </div>
+    </div>
+
+    <!-- 4. 时间轴 -->
+    <div class="panel-section">
+      <div class="panel-header" data-panel="tlBody">
+        <div class="ph-left"><span class="ph-icon">&#9728;</span><span class="ph-title">时间轴 / Timeline</span></div>
+        <span class="ph-arrow">&#9660;</span>
+      </div>
+      <div class="panel-body" id="tlBody" style="max-height:300px;">
+        <div class="evt-controls" style="padding-bottom:0;">
+          <select id="tlSort" onchange="updateTimeline()">
+            <option value="date-desc">最新优先</option>
+            <option value="date-asc">最早优先</option>
+            <option value="critical">仅严重事件</option>
+          </select>
+          <span style="font-size:10px;color:var(--ink3);margin-left:auto;" id="tlCount"></span>
+        </div>
+        <div class="tl-list" id="tlContent"></div>
+      </div>
+    </div>
+
+    <!-- 5. 更新日志 -->
+    <div class="panel-section">
+      <div class="panel-header" data-panel="logBody">
+        <div class="ph-left"><span class="ph-icon">&#9998;</span><span class="ph-title">更新日志 / Update Log</span></div>
+        <span class="ph-arrow">&#9660;</span>
+      </div>
+      <div class="panel-body" id="logBody" style="max-height:250px;">
+        <div id="logContent" style="padding:4px 0;">
+          <div class="log-entry"><span class="log-date">加载中...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. 周报 -->
+    <div class="panel-section">
+      <div class="panel-header" onclick="generateWeeklyReport()" style="cursor:pointer;">
+        <div class="ph-left"><span class="ph-icon">&#9783;</span><span class="ph-title">周报 / Weekly Report</span></div>
+        <span style="font-size:9.5px;color:var(--accent);font-family:var(--en);">点击生成 &rarr;</span>
+      </div>
+    </div>
+
+    <!-- 7. 快速报告 -->
+    <div class="panel-section">
+      <div class="panel-header" data-panel="qrBody">
+        <div class="ph-left"><span class="ph-icon">&#9740;</span><span class="ph-title">快速报告 / Quick Report</span></div>
+        <span class="ph-arrow">&#9660;</span>
+      </div>
+      <div class="panel-body" id="qrBody" style="max-height:500px;">
+        <div class="qr-wrap">
+          <textarea id="qrInput" placeholder="输入冲突或组织关键词，例如：M23、伊图里、CODECO、Goma...&#10;系统将自动匹配并提供选项，亦可使用全库搜索。"></textarea>
+          <div class="qr-options" id="qrOptions">
+            <span style="font-size:10.5px;color:var(--ink3);">输入关键词后自动显示匹配选项...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SUB-PANEL -->
+<div class="sub-panel-overlay" id="subOverlay"></div>
+<div class="sub-panel" id="subPanel">
+  <div class="sub-panel-header">
+    <h3 id="subPanelTitle">详情</h3>
+    <button class="sub-panel-close" id="subPanelClose">&times;</button>
+  </div>
+  <div class="sub-panel-body" id="subPanelBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ============ SCRIPTS ============ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script src="js/config.js"></script>
+<script src="js/data.js"></script>
+<script src="data/drc_provinces_geojson.js"></script>
+<script src="data/external_incidents.js"></script>
+<script src="js/map.js"></script>
+<script src="js/filters.js"></script>
+<script src="js/stats.js"></script>
+<script src="js/drawer.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/weekly-report.js"></script>
+<script src="js/quick-report.js"></script>
+
+<script>
+/* =====================================================================
+   BOOTSTRAP
+   ===================================================================== */
+function showToast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg;t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"),2400);
+}
+
+function toggleInfoPanel(){
+  const body=document.getElementById("infoPanelBody");
+  const arrow=document.getElementById("infoArrow");
+  const cur=body.style.maxHeight;
+  if(!cur||cur==="0px"){
+    body.style.maxHeight="500px";arrow.textContent="▾";
+  }else{
+    body.style.maxHeight="0px";arrow.textContent="▸";
+  }
+}
+
+// Panel collapse/expand
+document.querySelectorAll(".panel-header[data-panel]").forEach(h=>{
+  h.addEventListener("click",function(){
+    const targetId=this.dataset.panel;
+    const body=document.getElementById(targetId);
+    const arrow=this.querySelector(".ph-arrow");
+    if(!body||!arrow)return;
+    const cur=body.style.maxHeight;
+    if(!cur||cur==="0px"){
+      body.style.maxHeight=body.dataset.origHeight||"800px";
+      arrow.textContent="▼";
+    }else{
+      body.dataset.origHeight=cur;
+      body.style.maxHeight="0px";
+      arrow.textContent="▶";
+    }
+  });
+});
+
+// Load update log
+async function loadUpdateLog(){
+  const logDiv=document.getElementById("logContent");
+  try{
+    const r=await fetch("data/update_log.json");
+    if(r.ok){
+      const log=await r.json();
+      logDiv.innerHTML=log.entries.slice(0,20).map(e=>`
+        <div class="log-entry">
+          <span class="log-date">${e.date}</span>
+          ${e.status==="ok"?`<span class="log-ok">&#10003; ${e.summary}</span>`:`<span class="log-err">&#10007; ${e.summary}</span>`}
+        </div>`).join("");
+    }else{throw new Error("no log");}
+  }catch(e){
+    logDiv.innerHTML=`<div class="log-entry"><span class="log-date">&mdash;</span> 暂无更新日志。运行爬虫后将自动生成。<br><span style="font-size:9.5px;color:var(--ink3);">python scripts/crawler.py --days 7</span></div>`;
+  }
+}
+
+// Load external data (preloaded JS global or fetch fallback)
+async function loadExternalData(){
+  let added=0;
+  try{
+    // Use preloaded global if available (avoids CORS on file://)
+    if(typeof EXTERNAL_INCIDENTS!=="undefined"&&Array.isArray(EXTERNAL_INCIDENTS)){
+      const ids=new Set(INCIDENTS.map(d=>d.id));
+      EXTERNAL_INCIDENTS.forEach(d=>{
+        if(!ids.has(d.id)&&d.country==="DR Congo"){INCIDENTS.push(d);ids.add(d.id);added++;}
+      });
+    }else{
+      // Fetch fallback for web server deployment
+      for(const file of ["data/conflict_db.json","data/incidents.json"]){
+        const r=await fetch(file);
+        if(r.ok){
+          const ext=await r.json();
+          if(Array.isArray(ext)&&ext.length>0){
+            const ids=new Set(INCIDENTS.map(d=>d.id));
+            ext.forEach(d=>{if(!ids.has(d.id)&&d.country==="DR Congo"){INCIDENTS.push(d);ids.add(d.id);added++;}});
+          }
+        }
+      }
+    }
+    if(added>0){
+      activeIncidents=[...INCIDENTS];
+      showToast(`已加载外部数据: +${added} 条`);
+    }
+  }catch(e){/* use built-in */}
+
+  renderMarkers();
+  updateTimeline();
+  updateStats();
+  updateEventList();
+  const fc=document.getElementById("filterCount");if(fc)fc.textContent=`${activeIncidents.length} 条`;
+  const pc=document.getElementById("provCount");if(pc)pc.textContent=`${activeIncidents.length} 条`;
+}
+
+// Init
+function init(){
+  initMap();
+  initFilterUI();
+  initQuickReport();
+  loadUpdateLog();
+  loadExternalData();
+
+  document.addEventListener("keydown",e=>{
+    if(e.key==="Escape")closeDrawer();
+  });
+}
+
+document.addEventListener("DOMContentLoaded",init);
+
+// Globals
+window.openDrawer=openDrawer;
+window.closeDrawer=closeDrawer;
+window.applyFilters=applyFilters;
+window.resetFilters=resetFilters;
+window.generateWeeklyReport=generateWeeklyReport;
+window.generateQuickReport=generateQuickReport;
+window.doMaxSearch=doMaxSearch;
+window.updateStats=updateStats;
+window.updateTimeline=updateTimeline;
+window.updateEventList=updateEventList;
+window.flyToIncident=flyToIncident;
+window.showActorBrief=showActorBrief;
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+# DRC Conflict Map — .gitignore
+# ==============================
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Large data files (regenerate with scripts)
+# Uncomment if data files are too large for GitHub:
+# data/conflict_db.json
+
+# Crawler cache
+*.log
+
+# Node (if any)
+node_modules/
+
+# Embedded repos / external skills
+amap-skills/
+.cursor/
+
+# Local config
+.env
+*.local
