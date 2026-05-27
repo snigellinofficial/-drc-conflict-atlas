@@ -1,0 +1,56 @@
+name: Daily Data Update
+
+on:
+  schedule:
+    # 每日 UTC 00:00 (北京时间 08:00)
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate incidents
+        run: |
+          python scripts/generate_incidents.py --count 200
+
+      - name: Regenerate JS data file
+        run: |
+          python -c "
+          import json
+          with open('data/conflict_db.json', 'r', encoding='utf-8') as f:
+              incidents = json.load(f)
+          js = 'var EXTERNAL_INCIDENTS = ' + json.dumps(incidents, ensure_ascii=False, indent=2) + ';\n'
+          with open('data/external_incidents.js', 'w', encoding='utf-8') as f:
+              f.write(js)
+          print(f'Written {len(incidents)} incidents to external_incidents.js')
+          "
+
+      - name: Try GDELT crawl (optional, may fail)
+        continue-on-error: true
+        run: |
+          python scripts/crawler.py --days 7 || echo "GDELT crawl skipped (rate limited)"
+
+      - name: Commit and push if changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/conflict_db.json data/external_incidents.js data/update_log.json 2>/dev/null || true
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "data: daily auto-update $(date +%Y-%m-%d)"
+            git push
+            echo "Changes committed and pushed"
+          fi
