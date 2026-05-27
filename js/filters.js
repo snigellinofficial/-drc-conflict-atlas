@@ -29,8 +29,8 @@ function applyFilters(){
   if(window.updateTimeline)window.updateTimeline();
   if(window.updateStats)window.updateStats();
   if(window.syncTimeSliderFromFilters)window.syncTimeSliderFromFilters();
-  var fc=document.getElementById("filterCount");if(fc)fc.textContent=activeIncidents.length+" 条";
-  var pc=document.getElementById("provCount");if(pc)pc.textContent=activeIncidents.length+" 条";
+  var fc=document.getElementById("filterCount");if(fc)fc.textContent=activeIncidents.length+t('filter.unit');
+  var pc=document.getElementById("provCount");if(pc)pc.textContent=activeIncidents.length+t('filter.unit');
 }
 
 function selectAllTime(){
@@ -52,9 +52,9 @@ function resetFilters(){
   renderMarkers();
   if(window.updateTimeline)window.updateTimeline();
   if(window.updateStats)window.updateStats();
-  var fc=document.getElementById("filterCount");if(fc)fc.textContent=activeIncidents.length+" 条";
-  var pc=document.getElementById("provCount");if(pc)pc.textContent=activeIncidents.length+" 条";
-  showToast("筛选已重置");
+  var fc=document.getElementById("filterCount");if(fc)fc.textContent=activeIncidents.length+t('filter.unit');
+  var pc=document.getElementById("provCount");if(pc)pc.textContent=activeIncidents.length+t('filter.unit');
+  showToast(t('toast.filtersReset'));
 }
 
 // === Chip toggle (multi-select for type/severity/actor) ===
@@ -104,37 +104,38 @@ function filterActors(query){
 function showActorBrief(actorName){
   var profile=ACTOR_PROFILES[actorName];
   if(!profile){
-    showToast('"'+actorName+'" 暂无详细档案');
+    showToast('"'+actorName+'" '+t('actor.noProfile'));
     return;
   }
-  var titleHtml='<span style="color:var(--red);">&#9878;</span> '+profile.zh;
-  var bodyHtml=`
-    <div class="sp-section">
-      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-        <span class="sp-badge" style="background:var(--ink);color:#fff;">${profile.type}</span>
-        <span class="sp-badge" style="background:var(--ink3);color:#fff;">活跃自 ${profile.active_since}</span>
-        <span class="sp-badge" style="background:var(--red);color:#fff;">${profile.strength}</span>
-      </div>
-      <table class="sp-table">
-        <tr><th style="width:80px;">英文名</th><td style="font-family:var(--en);font-style:italic;">${profile.name}</td></tr>
-        <tr><th>活动区域</th><td>${profile.region}</td></tr>
-        <tr><th>兵力估计</th><td>${profile.strength}</td></tr>
-        <tr><th>盟友</th><td>${profile.allies}</td></tr>
-        <tr><th>对手</th><td>${profile.opponents}</td></tr>
-      </table>
-    </div>
-    <div class="sp-section">
-      <h4>组织概况 / Profile</h4>
-      <div class="sp-text"><p>${profile.desc}</p></div>
-    </div>
-    <div class="sp-section">
-      <h4>信息来源 / Sources</h4>
-      <p class="sp-source">
-        ${profile.sources.map(function(s){return '&#128218; '+s;}).join("<br>")}
-        ${profile.wiki?'<br><br>&#128214; <a href="'+profile.wiki+'" target="_blank" rel="noopener">Wikipedia 条目 &nearr;</a>':''}
-      </p>
-    </div>
-  `;
+  var dispName=LANG==='en'?profile.name:profile.zh;
+  var titleHtml='<span style="color:var(--red);">&#9878;</span> '+dispName;
+  var sinceLabel=LANG==='zh'?'活跃自 ':'Active since ';
+  var wikiLabel=LANG==='zh'?'Wikipedia 条目':'Wikipedia';
+  var bodyHtml='<div class="sp-section">'+
+      '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">'+
+        '<span class="sp-badge" style="background:var(--ink);color:#fff;">'+profile.type+'</span>'+
+        '<span class="sp-badge" style="background:var(--ink3);color:#fff;">'+sinceLabel+profile.active_since+'</span>'+
+        '<span class="sp-badge" style="background:var(--red);color:#fff;">'+profile.strength+'</span>'+
+      '</div>'+
+      '<table class="sp-table">'+
+        '<tr><th style="width:80px;">'+t('actor.enName')+'</th><td style="font-family:var(--en);font-style:italic;">'+profile.name+'</td></tr>'+
+        '<tr><th>'+t('actor.region')+'</th><td>'+profile.region+'</td></tr>'+
+        '<tr><th>'+t('actor.strength')+'</th><td>'+profile.strength+'</td></tr>'+
+        '<tr><th>'+t('actor.allies')+'</th><td>'+profile.allies+'</td></tr>'+
+        '<tr><th>'+t('actor.opponents')+'</th><td>'+profile.opponents+'</td></tr>'+
+      '</table>'+
+    '</div>'+
+    '<div class="sp-section">'+
+      '<h4>'+t('actor.profile')+'</h4>'+
+      '<div class="sp-text"><p>'+profile.desc+'</p></div>'+
+    '</div>'+
+    '<div class="sp-section">'+
+      '<h4>'+t('actor.sources')+'</h4>'+
+      '<p class="sp-source">'+
+        profile.sources.map(function(s){return '&#128218; '+s;}).join('<br>')+
+        (profile.wiki?'<br><br>&#128214; <a href="'+profile.wiki+'" target="_blank" rel="noopener">'+wikiLabel+' &nearr;</a>':'')+
+      '</p>'+
+    '</div>';
   if(window.pushDrawer){
     pushDrawer(titleHtml, bodyHtml, 'actor-'+actorName);
   }else{
@@ -159,7 +160,7 @@ function initFilterUI(){
     var cfg=CONFLICT_TYPES[typeKey];
     var span=document.createElement("span");
     span.className="chip type-"+typeKey;
-    span.textContent=cfg.zh;
+    span.textContent=getConflictTypeName(typeKey);
     span.dataset.value=typeKey;
     span.onclick=function(){toggleChip(this,"type");};
     typeDiv.appendChild(span);
@@ -172,7 +173,7 @@ function initFilterUI(){
     var cfg2=SEVERITY_LEVELS[sevKey];
     var span2=document.createElement("span");
     span2.className="chip sev-"+sevKey;
-    span2.textContent=cfg2.zh;
+    span2.textContent=getSeverityName(sevKey);
     span2.dataset.value=sevKey;
     span2.onclick=function(){toggleChip(this,"severity");};
     sevDiv.appendChild(span2);
@@ -180,10 +181,10 @@ function initFilterUI(){
 
   // --- Province select ---
   var selP=document.getElementById("filterProvince");
-  selP.innerHTML='<option value="">全部 26 省</option>';
+  selP.innerHTML='<option value="">'+t('filter.allProv')+'</option>';
   for(var provKey in DRC_PROVINCES){
     var val=DRC_PROVINCES[provKey];
-    var o=document.createElement("option");o.value=provKey;o.textContent=val.zh+"  "+val.en;selP.appendChild(o);
+    var o=document.createElement("option");o.value=provKey;o.textContent=(LANG==='en'?val.en:val.zh)+'  '+(LANG==='en'?val.zh:val.en);selP.appendChild(o);
   }
 
   // --- Actor chips with info buttons ---
@@ -195,7 +196,7 @@ function initFilterUI(){
   searchBox.type="text";
   searchBox.className="actor-search";
   searchBox.id="actorSearch";
-  searchBox.placeholder="搜索行为体 / Search actors...";
+  searchBox.placeholder=t('filter.actorSearch');
   searchBox.oninput=function(){filterActors(this.value);};
   actorDiv.appendChild(searchBox);
 
@@ -246,7 +247,7 @@ function initFilterUI(){
   // Actor count
   var actorCount=document.createElement("div");
   actorCount.style.cssText="font-size:10px;color:var(--ink3);margin-top:4px;font-family:var(--en);";
-  actorCount.textContent=allActors.length+" 个行为体";
+  actorCount.textContent=allActors.length+(LANG==='zh'?' 个行为体':' actors');
   actorDiv.appendChild(actorCount);
 
   // Default: all type, severity, and actor chips selected

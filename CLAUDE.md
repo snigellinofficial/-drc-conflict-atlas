@@ -7,6 +7,7 @@
 1. **Plan Mode 优先**:新需求先给可执行清单待确认,再动手改代码。
 2. **本文件是活文档**:改完只局部更新受影响的小节,不整篇重写。
 3. **小步快跑**:一次只做清单里的一项;改完提示 `git commit`。
+4. **每次会话结束必须 commit + push**:所有代码修改完成后 `git add -A && git commit -m "<描述>" && git push origin main`。GitHub Pages 在 push 后自动部署。
 
 ## 1. WHY — 目标
 面向**中文读者**、**严格中立**的刚果(金)冲突态势感知交互地图。聚焦**刚果(金)26个省份**的武装冲突和战争事件,仅聚合 ACLED/GDELT/UCDP 公开冲突数据,不做独立安全分析或预测。
@@ -16,15 +17,16 @@
 project-2/
 ├── css/style.css            — 全局样式(殖民时期羊皮纸美学)
 ├── js/
-│   ├── config.js            — 冲突类型/严重等级/26省/8个行为体档案
-│   ├── data.js              — 内置事件数据(23条,2020-2026,9个省份)
-│   ├── map.js               — Leaflet地图初始化/标记/省份GeoJSON图层
+│   ├── config.js            — 冲突类型/严重等级/26省/12个行为体档案
+│   ├── i18n.js              — ★ 国际化引擎(字符串表/t()/语言切换/事件本地化)
+│   ├── data.js              — 内置事件数据(23条,2020-2026)
+│   ├── map.js               — Leaflet地图初始化/标记/省份GeoJSON图层/省份摘要
 │   ├── filters.js           — 筛选逻辑(类型/等级/行为体/省份/时间)
-│   ├── stats.js             — 统计计算(省份级分布)
-│   ├── drawer.js            — 次级弹窗(事件详情/行为体档案/态势评估)
+│   ├── stats.js             — 统计计算+月度趋势图
+│   ├── drawer.js            — 次级弹窗(事件详情/态势评估, 全双语)
 │   ├── timeline.js          — 时间轴和事件列表渲染
-│   ├── weekly-report.js     — 周报生成(doublecheck→按省份结构化报告)
-│   └── quick-report.js      — 快速报告(模糊匹配→RAND风格简式中文报告)
+│   ├── weekly-report.js     — 月度报告生成(doublecheck→结构化双语报告)
+│   └── quick-report.js      — 快速报告(模糊匹配→RAND风格简式双语报告)
 ├── data/
 │   ├── drc_provinces.json            — DRC 26省 GeoJSON 边界数据(~1MB)
 │   ├── acled_drc_data.json           — ACLED 全量事件(35,810条, ~31MB, 参考)
@@ -83,8 +85,11 @@ project-2/
 M23, ADF, CODECO, FARDC, FDLR, MONUSCO, Wazalendo, IS-CAP, Mai-Mai, RDF, UPDF, LRA — 每个含名称/类型/活跃时间/活动区域/兵力估计/盟友/对手/简介(Wikipedia来源)/Wiki链接
 
 ## 4. FEATURES
+### 全局语言切换
+页面顶部中/英切换按钮。中文模式:所有UI翻译为中文, ACLED事件通过结构化模板生成中文标题/描述, 术语附拉丁字母原文。英文模式:所有UI翻译为英文, 内置中文事件通过模板生成英文。行为体名称保留原文。语言偏好通过URL参数 `?lang=en` 持久化(禁用localStorage)。
+
 ### 左上信息面板
-双语(中/英)说明:系统性质、数据来源、更新模式、地图交互、技术架构
+动态双语(中/英)说明:系统性质、数据来源、更新模式、地图交互、技术架构
 
 ### 右面板浏览栏 (7大模块,点击展开/折叠)
 1. **统计概览** — 6格统计卡片(总事件/累计死亡/战斗数/严重事件/省份数/本月新增)
@@ -159,6 +164,10 @@ M23, ADF, CODECO, FARDC, FDLR, MONUSCO, Wazalendo, IS-CAP, Mai-Mai, RDF, UPDF, L
 - [x] P-L 数据校验流水线(8规则验证+自动修复)
 - [x] P-M GitHub Actions云端自动更新(每日增量+commit+push)
 - [x] P-N 行为体档案扩展(8→12: +Mai-Mai, RDF, UPDF, LRA)
+- [x] P-O 全局语言切换(中/英, i18n引擎, 事件本地化)
+- [x] P-P 省份详情页优化(行为体按频率降序, 省略号展开)
+- [x] P-Q README重写(面向最终用户, 移除API密钥要求)
+- [x] P-R CLI中文写作skill(chinese-writing.md)
 - [ ] P-I 热力图/密度图模式
 - [ ] P-J 实时推送(GDELT streaming)
 

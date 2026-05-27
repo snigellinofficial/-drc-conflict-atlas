@@ -59,13 +59,12 @@ function updateStats(){
 
   const grid=document.getElementById("statsGrid");
   if(!grid)return;
-  grid.innerHTML=`
-    <div class="stat-card"><div class="sc-num" style="color:var(--red)">${s.total}</div><div class="sc-lbl">总冲突事件</div><div class="sc-sub">数据库累计 / All Time</div></div>
-    <div class="stat-card"><div class="sc-num" style="color:var(--accent)">${s.battlesCount}</div><div class="sc-lbl">战斗/交火事件</div><div class="sc-sub">Battles & Clashes</div></div>
-    <div class="stat-card"><div class="sc-num" style="color:var(--red)">${s.criticalCount}</div><div class="sc-lbl">严重(critical)事件</div><div class="sc-sub">最严重等级</div></div>
-    <div class="stat-card"><div class="sc-num" style="color:var(--ink3)">${s.provinces}</div><div class="sc-lbl">涉及省份</div><div class="sc-sub">共26省 / Provinces</div></div>
-    <div class="stat-card"><div class="sc-num" style="color:var(--accent)">${s.thisMonth}</div><div class="sc-lbl">本月新增事件</div><div class="sc-sub">This Month / ${new Date().toISOString().slice(0,7)}</div></div>
-  `;
+  grid.innerHTML=
+    '<div class="stat-card"><div class="sc-num" style="color:var(--red)">'+s.total+'</div><div class="sc-lbl">'+t('stats.total')+'</div><div class="sc-sub">'+t('stats.allTime')+'</div></div>'+
+    '<div class="stat-card"><div class="sc-num" style="color:var(--accent)">'+s.battlesCount+'</div><div class="sc-lbl">'+t('stats.battles')+'</div><div class="sc-sub">'+t('stats.battlesSub')+'</div></div>'+
+    '<div class="stat-card"><div class="sc-num" style="color:var(--red)">'+s.criticalCount+'</div><div class="sc-lbl">'+t('stats.critical')+'</div><div class="sc-sub">'+t('stats.criticalSub')+'</div></div>'+
+    '<div class="stat-card"><div class="sc-num" style="color:var(--ink3)">'+s.provinces+'</div><div class="sc-lbl">'+t('stats.provinces')+'</div><div class="sc-sub">'+t('stats.provincesSub')+'</div></div>'+
+    '<div class="stat-card"><div class="sc-num" style="color:var(--accent)">'+s.thisMonth+'</div><div class="sc-lbl">'+t('stats.monthNew')+'</div><div class="sc-sub">'+t('stats.monthSub')+' / '+new Date().toISOString().slice(0,7)+'</div></div>';
 
   drawMonthlyChart(s.chartData);
 }
@@ -243,14 +242,16 @@ function drawMonthlyChart(chartData){
   ctx.translate(9,pad.top+ph/2);
   ctx.rotate(-Math.PI/2);
   ctx.fillStyle="#595959";
-  ctx.font="10px 'Noto Serif SC', serif";
+  var yFont=LANG==='en'?"10px 'Times New Roman', Times, serif":"10px 'Noto Serif SC', serif";
+  ctx.font=yFont;
   ctx.textAlign="center";
-  ctx.fillText("事件件数",0,0);
+  ctx.fillText(t('chart.yLabel'),0,0);
   ctx.restore();
 
   // X-axis label
   ctx.fillStyle="#595959";
-  ctx.font="9px 'Noto Serif SC', serif";
+  var xFont=LANG==='en'?"9px 'Times New Roman', Times, serif":"9px 'Noto Serif SC', serif";
+  ctx.font=xFont;
   ctx.textAlign="center";
-  ctx.fillText("时间 / Date",pad.left+pw/2,h-3);
+  ctx.fillText(t('chart.xLabel'),pad.left+pw/2,h-3);
 }

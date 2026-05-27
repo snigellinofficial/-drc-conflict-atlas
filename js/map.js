@@ -125,10 +125,10 @@ async function loadProvinceLayer(){
     provinceLabelsGroup.addTo(map);
     updateLabelVisibility();
 
-    showToast("DRC 26省行政区划已加载");
+    showToast(t('toast.provLoaded'));
   }catch(e){
     console.warn("Province layer not loaded:",e.message);
-    showToast("省级地图加载失败，请检查网络连接");
+    showToast(t('toast.provFail'));
   }
 }
 
@@ -178,7 +178,7 @@ function updateLabelVisibility(){
           L.marker(center,{
             icon:L.divIcon({
               className:"province-label-wrap",
-              html:'<div class="province-label-inner"><span class="province-label">'+pInfo.zh+'</span><br><span class="province-label-en">'+pInfo.en+'</span></div>',
+              html:'<div class="province-label-inner"><span class="province-label">'+(LANG==='en'?pInfo.en:pInfo.zh)+'</span>'+(LANG==='en'?'<br><span class="province-label-en">'+pInfo.zh+'</span>':'<br><span class="province-label-en">'+pInfo.en+'</span>')+'</div>',
               iconSize:[120,24],
               iconAnchor:[60,12]
             }),
@@ -222,36 +222,76 @@ function updateCityVisibility(){
 
 function showProvinceSummary(provinceName){
   var pInfo=DRC_PROVINCES[provinceName]||{zh:provinceName,en:provinceName};
-  // Province shows ALL incidents regardless of current time filter
   var provIncidents=INCIDENTS.filter(function(d){return d.province===provinceName;});
   var fatalTotal=provIncidents.reduce(function(s,d){return s+(d.fatalities||0);},0);
   var types={};
   provIncidents.forEach(function(d){if(!types[d.type])types[d.type]=0;types[d.type]++;});
 
   if(provIncidents.length===0){
-    showToast(pInfo.zh+": 暂无冲突事件记录");
+    showToast(getProvinceDisplayName(provinceName)+': '+t('prov.noData'));
     return;
   }
 
-  var titleHtml='&#128205; '+pInfo.zh+' <span style="font-size:13px;font-weight:400;font-family:var(--en);font-style:italic;">'+pInfo.en+'</span>';
+  var pDisplay=LANG==='en'?pInfo.en:pInfo.zh;
+  var pSub=LANG==='en'?pInfo.zh:pInfo.en;
+  var titleHtml='&#128205; '+pDisplay+' <span style="font-size:13px;font-weight:400;font-family:var(--en);font-style:italic;">'+pSub+'</span>';
+
+  // Actor frequency
+  var actorFreq={}, filterList=['平民','N/A','政府','民众','警方','矿工工会','矿业公司'];
+  provIncidents.forEach(function(d){
+    [d.actor1,d.actor2].forEach(function(a){
+      if(!a||filterList.indexOf(a)!==-1)return;
+      if(!actorFreq[a])actorFreq[a]=0;
+      actorFreq[a]++;
+    });
+  });
+  var sortedActors=Object.entries(actorFreq).sort(function(a,b){return b[1]-a[1];});
+  var top5=sortedActors.slice(0,5);
+  var rest=sortedActors.slice(5);
+  var uid='ae-'+provinceName.replace(/[^a-zA-Z0-9]/g,'');
+  var actorHtml=top5.map(function(e){
+    return '<span class="actor-chip">'+e[0]+'<span class="chip-count">'+e[1]+'</span></span>';
+  }).join('');
+  if(rest.length>0){
+    var restHtml=rest.map(function(e){
+      return '<span class="actor-chip">'+e[0]+'<span class="chip-count">'+e[1]+'</span></span>';
+    }).join('');
+    actorHtml+=' <span class="actor-expand-btn" id="'+uid+'" onclick="toggleHiddenActors(\''+uid+'\')">... ('+rest.length+' '+t('prov.more')+')</span>';
+    actorHtml+='<span class="actor-hidden" id="'+uid+'-h">'+restHtml+'</span>';
+  }
+
   var bodyHtml='<div class="sp-section">'+
-    '<table class="sp-table">'+
-      '<tr><th>指标</th><th>数值</th></tr>'+
-      '<tr><td>历史事件总数</td><td style="font-weight:700;">'+provIncidents.length+'</td></tr>'+
-      '<tr><td>估计累计死亡</td><td style="color:var(--red);font-weight:700;">'+fatalTotal+'</td></tr>'+
-      '<tr><td>冲突类型分布</td><td>'+Object.entries(types).sort(function(a,b){return b[1]-a[1];}).map(function(e){return CONFLICT_TYPES[e[0]].zh+'('+e[1]+')';}).join(" &middot; ")+'</td></tr>'+
-      '<tr><td>涉及行为体</td><td>'+[...new Set(provIncidents.flatMap(function(d){return [d.actor1,d.actor2];}))].filter(function(a){return a!=="平民"&&a!=="N/A";}).join("、")+'</td></tr>'+
+    '<table class="sp-table sp-table-province">'+
+      '<tr><th>'+t('prov.metric')+'</th><th>'+t('prov.value')+'</th></tr>'+
+      '<tr><td>'+t('prov.totalEvents')+'</td><td style="font-weight:700;">'+provIncidents.length+'</td></tr>'+
+      '<tr><td>'+t('prov.totalDeaths')+'</td><td style="color:var(--red);font-weight:700;">'+fatalTotal+'</td></tr>'+
+      '<tr><td>'+t('prov.typeDist')+'</td><td>'+Object.entries(types).sort(function(a,b){return b[1]-a[1];}).map(function(e){return getConflictTypeName(e[0])+'('+e[1]+')';}).join(' &middot; ')+'</td></tr>'+
+      '<tr><td>'+t('prov.actors')+'</td><td>'+actorHtml+'</td></tr>'+
     '</table></div>'+
-    '<div class="sp-section"><h4>最近事件 / Recent Incidents</h4>'+
+    '<div class="sp-section"><h4>'+t('prov.recent')+'</h4>'+
     provIncidents.sort(function(a,b){return b.date.localeCompare(a.date);}).slice(0,8).map(function(d){
+      var loc=localizeEvent(d);
       return '<div class="report-card" onclick="flyToIncident(\''+d.id+'\')" style="cursor:pointer;">'+
-        '<div class="rc-date">'+d.date+' &middot; '+SEVERITY_LEVELS[d.severity].zh+'度</div>'+
-        '<div class="rc-title">'+d.title+'</div>'+
-        '<div class="rc-desc">死亡: '+(d.fatalities||0)+' &middot; '+CONFLICT_TYPES[d.type].zh+' &middot; '+d.actor1+' vs '+d.actor2+'</div>'+
+        '<div class="rc-date">'+d.date+' &middot; '+getSeverityName(d.severity)+(LANG==='zh'?'度':'')+'</div>'+
+        '<div class="rc-title">'+loc.title+'</div>'+
+        '<div class="rc-desc">'+t('prov.deaths')+' '+(d.fatalities||0)+' &middot; '+getConflictTypeName(d.type)+' &middot; '+d.actor1+' vs '+d.actor2+'</div>'+
       '</div>';
-    }).join("")+'</div>';
+    }).join('')+'</div>';
 
   pushDrawer(titleHtml, bodyHtml, 'province-'+provinceName);
+}
+
+function toggleHiddenActors(id){
+  var btn=document.getElementById(id);
+  var hidden=document.getElementById(id+'-h');
+  if(!btn||!hidden)return;
+  if(hidden.style.display==='inline'||hidden.style.display===''){
+    hidden.style.display='none';
+    btn.textContent='... ('+hidden.querySelectorAll('.actor-chip').length+' '+t('prov.more')+')';
+  }else{
+    hidden.style.display='inline';
+    btn.textContent=' ('+t('prov.collapse')+')';
+  }
 }
 
 // ===================== TIME SLIDER =====================
@@ -263,15 +303,15 @@ function initTimeSlider(){
     wrap.id="timeSliderWrap";
     wrap.className="time-slider-wrap";
     wrap.innerHTML=
-      '<div class="ts-label">时段 / Period</div>'+
+      '<div class="ts-label">'+t('ts.label')+'</div>'+
       '<div class="ts-row" style="flex-wrap:wrap;">'+
-        '<button class="ts-btn-preset" id="ts1mBtn" title="最近一个月">1个月</button>'+
-        '<button class="ts-btn-preset" id="ts3mBtn" title="最近三个月">3个月</button>'+
-        '<button class="ts-btn-preset" id="ts6mBtn" title="最近六个月">6个月</button>'+
-        '<button class="ts-btn-preset" id="ts1yBtn" title="最近一年">1年</button>'+
-        '<button class="ts-btn-preset" id="ts3yBtn" title="最近三年">3年</button>'+
-        '<button class="ts-btn-preset" id="ts5yBtn" title="最近五年">5年</button>'+
-        '<button class="ts-btn-preset" id="tsAllBtn" title="选择全部时段">全部</button>'+
+        '<button class="ts-btn-preset" id="ts1mBtn">'+t('ts.1m')+'</button>'+
+        '<button class="ts-btn-preset" id="ts3mBtn">'+t('ts.3m')+'</button>'+
+        '<button class="ts-btn-preset" id="ts6mBtn">'+t('ts.6m')+'</button>'+
+        '<button class="ts-btn-preset" id="ts1yBtn">'+t('ts.1y')+'</button>'+
+        '<button class="ts-btn-preset" id="ts3yBtn">'+t('ts.3y')+'</button>'+
+        '<button class="ts-btn-preset" id="ts5yBtn">'+t('ts.5y')+'</button>'+
+        '<button class="ts-btn-preset" id="tsAllBtn">'+t('ts.all')+'</button>'+
       '</div>'+
       '<div class="ts-row ts-dates">'+
         '<input type="date" id="tsDateFrom" class="ts-date" />'+
@@ -364,7 +404,7 @@ function updateTimeSliderInfo(){
   var count=activeIncidents.filter(function(d){
     return d.date>=timeRange.start&&d.date<=timeRange.end;
   }).length;
-  info.textContent='匹配: '+count+' 条事件';
+  info.textContent=t('ts.match')+' '+count+t('ts.unit');
 }
 
 // Sync from filter panel back to time slider
@@ -438,7 +478,7 @@ function updateBackButton(){
   if(!btn)return;
   if(drawerStack.length>0){
     btn.style.display="flex";
-    btn.title="返回上一级 ("+drawerStack.length+"级)";
+    btn.title=t('back')+" ("+drawerStack.length+")";
   }else{
     btn.style.display="none";
   }
@@ -449,6 +489,7 @@ function updateBackButton(){
 function createMarker(inc){
   var sev=SEVERITY_LEVELS[inc.severity];
   var type=CONFLICT_TYPES[inc.type];
+  var loc=localizeEvent(inc);
   var marker=L.circleMarker([inc.lat,inc.lng],{
     radius: sev.size + 3,
     fillColor: type.color,
@@ -461,15 +502,15 @@ function createMarker(inc){
   marker.bindPopup(
     '<div style="max-width:280px;">'+
       '<div style="display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap;">'+
-        '<span class="sp-badge" style="background:'+type.color+';color:#fff;">'+type.zh+'</span>'+
-        '<span class="sp-badge" style="background:'+sev.color+';color:#fff;">'+sev.zh+'</span>'+
-        (inc.verified?'<span class="sp-badge" style="background:var(--green);color:#fff;">已验证</span>':'')+
+        '<span class="sp-badge" style="background:'+type.color+';color:#fff;">'+getConflictTypeName(inc.type)+'</span>'+
+        '<span class="sp-badge" style="background:'+sev.color+';color:#fff;">'+getSeverityName(inc.severity)+'</span>'+
+        (inc.verified?'<span class="sp-badge" style="background:var(--green);color:#fff;">'+t('drawer.verified')+'</span>':'')+
       '</div>'+
-      '<div style="font-weight:700;font-size:13px;margin-bottom:3px;">'+inc.title+'</div>'+
-      '<div style="font-size:10px;color:var(--ink3);line-height:1.5;">'+inc.province+' &middot; '+inc.city+' &middot; '+inc.country+'</div>'+
+      '<div style="font-weight:700;font-size:13px;margin-bottom:3px;">'+loc.title+'</div>'+
+      '<div style="font-size:10px;color:var(--ink3);line-height:1.5;">'+getProvinceDisplayName(inc.province)+' &middot; '+inc.city+' &middot; '+(LANG==='zh'?'刚果(金)':'DR Congo')+'</div>'+
       '<div style="font-size:10px;color:var(--ink3);line-height:1.5;">'+inc.date+' &middot; '+inc.actor1+' vs '+inc.actor2+'</div>'+
-      '<div style="font-size:10px;color:var(--ink3);line-height:1.5;">死亡: <b style="color:var(--red)">'+(inc.fatalities||0)+'</b></div>'+
-      '<button onclick="if(window.openDrawer)window.openDrawer(\''+inc.id+'\')" style="margin-top:6px;font-size:10px;padding:4px 12px;border-radius:2px;cursor:pointer;background:var(--accent);color:var(--paper1);border:none;font-weight:600;font-family:var(--zh);">查看详情 &rarr;</button>'+
+      '<div style="font-size:10px;color:var(--ink3);line-height:1.5;">'+t('fatalities')+': <b style="color:var(--red)">'+(inc.fatalities||0)+'</b></div>'+
+      '<button onclick="if(window.openDrawer)window.openDrawer(\''+inc.id+'\')" style="margin-top:6px;font-size:10px;padding:4px 12px;border-radius:2px;cursor:pointer;background:var(--accent);color:var(--paper1);border:none;font-weight:600;font-family:var(--zh);">'+t('drawer.view')+'</button>'+
     '</div>'
   );
   marker.incidentId=inc.id;
@@ -500,12 +541,8 @@ function flyToIncident(id){
 function buildMapLegend(){
   var div=document.createElement("div");
   div.className="map-legend";
-  div.innerHTML='<h4>冲突类型 / Type</h4>'+
-    Object.entries(CONFLICT_TYPES).map(function(e){return '<div class="leg-row"><span class="leg-dot" style="background:'+e[1].color+'"></span>'+e[1].zh+'</div>';}).join("")+
-    '<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--hair);font-size:10px;color:var(--ink3);line-height:1.6;">'+
-    '<b>点击省份</b> → 查看省份概况<br>点击标记 → 查看事件详情<br>'+
-    '缩放至9级 → 显示省份名称<br>缩放至10级 → 显示城市名称<br>'+
-    '<span style="display:inline-block;width:10px;height:10px;border:2px solid #5a0000;background:rgba(139,32,32,.22);margin-right:4px;"></span> 时段内有冲突 '+
-    '<span style="display:inline-block;width:10px;height:10px;border:2.5px solid #1a0a00;background:rgba(212,160,138,.5);margin-right:4px;"></span> 已选省份</div>';
+  div.innerHTML='<h4>'+t('legend.title')+'</h4>'+
+    Object.entries(CONFLICT_TYPES).map(function(e){return '<div class="leg-row"><span class="leg-dot" style="background:'+e[1].color+'"></span>'+getConflictTypeName(e[0])+'</div>';}).join("")+
+    '<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--hair);font-size:10px;color:var(--ink3);line-height:1.6;">'+t('legend.help')+'</div>';
   document.querySelector(".map-wrap").appendChild(div);
 }

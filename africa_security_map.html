@@ -28,6 +28,11 @@
     <div class="qstat"><div class="num" style="color:var(--accent)" id="statActive">--</div><div class="lbl">战斗/交手</div></div>
     <div class="qstat"><div class="num" style="color:var(--ink3)" id="statProvinces">--</div><div class="lbl">涉及省份</div></div>
     <span style="font-size:10px;color:var(--ink3);margin-left:6px;"><span class="live-dot"></span>态势感知中</span>
+    <div class="lang-toggle">
+      <button class="lang-btn active" id="langZh" onclick="setLanguage('zh')">中</button>
+      <span class="lang-div">|</span>
+      <button class="lang-btn" id="langEn" onclick="setLanguage('en')">EN</button>
+    </div>
   </div>
 </header>
 
@@ -234,6 +239,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
 <script src="js/config.js"></script>
+<script src="js/i18n.js"></script>
 <script src="js/data.js"></script>
 <script src="data/drc_provinces_geojson.js"></script>
 <script src="data/incidents.js"></script>
@@ -299,7 +305,7 @@ async function loadUpdateLog(){
         </div>`).join("");
     }else{throw new Error("no log");}
   }catch(e){
-    logDiv.innerHTML=`<div class="log-entry"><span class="log-date">&mdash;</span> 暂无更新日志。运行爬虫后将自动生成。<br><span style="font-size:9.5px;color:var(--ink3);">python scripts/crawler.py --days 7</span></div>`;
+    logDiv.innerHTML='<div class="log-entry"><span class="log-date">&mdash;</span> '+t('log.fallback')+'</div>';
   }
 }
 
@@ -342,11 +348,42 @@ async function loadExternalData(){
 
 // Init
 function init(){
+  initLangFromURL();
   initMap();
   initFilterUI();
   initQuickReport();
   loadUpdateLog();
   loadExternalData();
+  rebuildInfoPanelBody();
+  updateEvtSortOptions();
+  updateTlSortOptions();
+  updateHeaderStatsLabels();
+  updateQRPlaceholder();
+  updateFilterUI();
+  /* Chrome button labels for non-default language */
+  var backBtn = document.getElementById('subPanelBack');
+  if (backBtn) { backBtn.innerHTML = '&larr; ' + t('back'); backBtn.title = t('back'); }
+  var closeBtn = document.getElementById('subPanelClose');
+  if (closeBtn) closeBtn.title = t('close');
+  var miBtn = document.querySelector('[onclick="showMoreInfo()"]');
+  if (miBtn) miBtn.textContent = t('moreInfo.btn');
+  /* Panel section headers for non-default language */
+  if (LANG !== 'zh') {
+    var phKeys = ['panel.stats','panel.filters','panel.events','panel.timeline','panel.log','panel.monthly','panel.quickReport'];
+    document.querySelectorAll('.panel-header .ph-title').forEach(function(el, i) {
+      if (i < phKeys.length) el.textContent = t(phKeys[i]);
+    });
+    /* Gen report link */
+    var genSpans = document.querySelectorAll('[onclick="generateWeeklyReport()"] > span');
+    genSpans.forEach(function(s) {
+      if (s.textContent.indexOf('生成') !== -1 || s.textContent.indexOf('Generate') !== -1) {
+        s.textContent = t('genReport');
+      }
+    });
+    /* Header site title */
+    var h1 = document.querySelector('.brand h1');
+    if (h1) h1.textContent = t('site.title');
+  }
 
   document.addEventListener("keydown",e=>{
     if(e.key==="Escape")closeDrawer();
@@ -358,12 +395,10 @@ document.addEventListener("DOMContentLoaded",init);
 // More-info modal
 function showMoreInfo(){
   var allIncidents=[...INCIDENTS];
-  // also include external if loaded
   if(typeof EXTERNAL_INCIDENTS!=="undefined"&&Array.isArray(EXTERNAL_INCIDENTS)){
     allIncidents=[...allIncidents,...EXTERNAL_INCIDENTS.filter(function(d){return d.country==="DR Congo";})];
   }
 
-  // Group by year
   var byYear={};
   allIncidents.forEach(function(d){
     var y=d.date.slice(0,4);
@@ -372,42 +407,80 @@ function showMoreInfo(){
   });
   var years=Object.keys(byYear).sort();
 
+  var isZh=LANG==='zh';
   var md='<div class="more-info-md">';
 
   // Section 1: Data Sources
-  md+='<h4>一、数据来源 / Data Sources</h4>';
+  md+='<h4>'+t('moreInfo.section1')+'</h4>';
   md+='<ul>';
-  md+='<li><b>ACLED</b>（武装冲突地点与事件数据项目）&mdash; <a href="https://acleddata.com/" target="_blank" rel="noopener">acleddata.com</a><br>核心数据来源。通过ACLED API直接获取专家编码的刚果（金）冲突事件，覆盖2010年7月（MONUSCO成立）至今，共计35,810条原始记录，经智能采样后展示核心事件。</li>';
-  md+='<li><b>GDELT</b>（全球事件、语言与语调数据库）&mdash; <a href="https://www.gdeltproject.org/" target="_blank" rel="noopener">gdeltproject.org</a><br>备用数据源。通过GDELT 2.0 API拉取非洲地区冲突新闻报道，用于交叉验证ACLED数据。</li>';
-  md+='<li><b>UCDP</b>（乌普萨拉冲突数据项目）&mdash; <a href="https://ucdp.uu.se/" target="_blank" rel="noopener">ucdp.uu.se</a><br>乌普萨拉大学和平与冲突研究系维护的全球武装冲突数据库，提供学界验证的冲突事件记录。</li>';
-  md+='<li><b>ReliefWeb</b>（联合国人道事务协调厅）&mdash; <a href="https://reliefweb.int/" target="_blank" rel="noopener">reliefweb.int</a><br>联合国人道主义事务协调厅（UN OCHA）的人道信息平台，提供刚果（金）东部人道危机的权威报告。</li>';
-  md+='<li><b>geoBoundaries</b> &mdash; <a href="https://www.geoboundaries.org/" target="_blank" rel="noopener">geoboundaries.org</a><br>提供刚果（金）26个省份的GeoJSON行政区划边界数据。</li>';
+  if(isZh){
+    md+='<li><b>ACLED</b>（武装冲突地点与事件数据项目）&mdash; <a href="https://acleddata.com/" target="_blank" rel="noopener">acleddata.com</a><br>核心数据来源。通过ACLED API直接获取专家编码的刚果（金）冲突事件，覆盖2010年7月（MONUSCO成立）至今，共计35,810条原始记录，经智能采样后展示核心事件。</li>';
+    md+='<li><b>GDELT</b>（全球事件、语言与语调数据库）&mdash; <a href="https://www.gdeltproject.org/" target="_blank" rel="noopener">gdeltproject.org</a><br>备用数据源。通过GDELT 2.0 API拉取非洲地区冲突新闻报道，用于交叉验证ACLED数据。</li>';
+    md+='<li><b>UCDP</b>（乌普萨拉冲突数据项目）&mdash; <a href="https://ucdp.uu.se/" target="_blank" rel="noopener">ucdp.uu.se</a><br>乌普萨拉大学和平与冲突研究系维护的全球武装冲突数据库，提供学界验证的冲突事件记录。</li>';
+    md+='<li><b>ReliefWeb</b>（联合国人道事务协调厅）&mdash; <a href="https://reliefweb.int/" target="_blank" rel="noopener">reliefweb.int</a><br>联合国人道主义事务协调厅（UN OCHA）的人道信息平台，提供刚果（金）东部人道危机的权威报告。</li>';
+    md+='<li><b>geoBoundaries</b> &mdash; <a href="https://www.geoboundaries.org/" target="_blank" rel="noopener">geoboundaries.org</a><br>提供刚果（金）26个省份的GeoJSON行政区划边界数据。</li>';
+  }else{
+    md+='<li><b>ACLED</b> (Armed Conflict Location & Event Data Project) &mdash; <a href="https://acleddata.com/" target="_blank" rel="noopener">acleddata.com</a><br>Primary data source. Expert-coded DRC conflict events retrieved via ACLED API, covering July 2010 (MONUSCO establishment) to present, totaling 35,810 raw records with intelligent sampling for core event display.</li>';
+    md+='<li><b>GDELT</b> (Global Database of Events, Language, and Tone) &mdash; <a href="https://www.gdeltproject.org/" target="_blank" rel="noopener">gdeltproject.org</a><br>Secondary data source. Africa region conflict news reports pulled via GDELT 2.0 API for cross-validation of ACLED data.</li>';
+    md+='<li><b>UCDP</b> (Uppsala Conflict Data Program) &mdash; <a href="https://ucdp.uu.se/" target="_blank" rel="noopener">ucdp.uu.se</a><br>Global armed conflict database maintained by Uppsala University\'s Department of Peace and Conflict Research, providing academically validated conflict event records.</li>';
+    md+='<li><b>ReliefWeb</b> (UN OCHA) &mdash; <a href="https://reliefweb.int/" target="_blank" rel="noopener">reliefweb.int</a><br>Humanitarian information platform of the UN Office for the Coordination of Humanitarian Affairs, providing authoritative reports on the eastern DRC humanitarian crisis.</li>';
+    md+='<li><b>geoBoundaries</b> &mdash; <a href="https://www.geoboundaries.org/" target="_blank" rel="noopener">geoboundaries.org</a><br>Provides GeoJSON administrative boundary data for the 26 provinces of the DRC.</li>';
+  }
   md+='</ul>';
 
   // Section 2: Update Mode
-  md+='<h4>二、更新模式 / Update Mode</h4>';
+  md+='<h4>'+t('moreInfo.section2')+'</h4>';
   md+='<ul>';
-  md+='<li><b>内置数据</b>：覆盖 2010&ndash;2026 年刚果（金）25/26个省份的冲突事件，共计103条核心记录内联加载，基于ACLED专家编码数据。</li>';
-  md+='<li><b>爬虫工具</b>：<span style="font-family:var(--en);">scripts/acled_crawler.py</span> 从ACLED API（OAuth 2.0）直接获取专家编码冲突事件。用法：<span style="font-family:var(--en);">python acled_crawler.py --from 2010-07-01</span></li>';
-  md+='<li><b>ACLED 实时数据</b>：通过 <span style="font-family:var(--en);">scripts/acled_crawler.py</span> 从ACLED API直接获取专家编码的冲突事件，覆盖2010年7月（MONUSCO成立）至今，确保数据真实可溯源。</li>';
-  md+='<li><b>本地数据库</b>：<span style="font-family:var(--en);">data/conflict_db.json</span> &mdash; 爬虫写入的本地冲突数据库；<span style="font-family:var(--en);">data/update_log.json</span> &mdash; 每日更新日志。</li>';
-  md+='<li><b>验证状态</b>：每条事件均标注验证状态（已验证/待验证），数据来源透明可追溯。</li>';
+  if(isZh){
+    md+='<li><b>内置数据</b>：覆盖 2010&ndash;2026 年刚果（金）25/26个省份的冲突事件，共计103条核心记录内联加载，基于ACLED专家编码数据。</li>';
+    md+='<li><b>爬虫工具</b>：<span style="font-family:var(--en);">scripts/acled_crawler.py</span> 从ACLED API（OAuth 2.0）直接获取专家编码冲突事件。用法：<span style="font-family:var(--en);">python acled_crawler.py --from 2010-07-01</span></li>';
+    md+='<li><b>ACLED 实时数据</b>：通过 <span style="font-family:var(--en);">scripts/acled_crawler.py</span> 从ACLED API直接获取专家编码的冲突事件，覆盖2010年7月（MONUSCO成立）至今，确保数据真实可溯源。</li>';
+    md+='<li><b>本地数据库</b>：<span style="font-family:var(--en);">data/conflict_db.json</span> &mdash; 爬虫写入的本地冲突数据库；<span style="font-family:var(--en);">data/update_log.json</span> &mdash; 每日更新日志。</li>';
+    md+='<li><b>验证状态</b>：每条事件均标注验证状态（已验证/待验证），数据来源透明可追溯。</li>';
+  }else{
+    md+='<li><b>Built-in Data</b>: Covers 2010&ndash;2026 DRC conflict events across 25/26 provinces, with core records loaded inline based on ACLED expert-coded data.</li>';
+    md+='<li><b>Crawler Tool</b>: <span style="font-family:var(--en);">scripts/acled_crawler.py</span> retrieves expert-coded conflict events directly from the ACLED API (OAuth 2.0). Usage: <span style="font-family:var(--en);">python acled_crawler.py --from 2010-07-01</span></li>';
+    md+='<li><b>ACLED Live Data</b>: Expert-coded conflict events retrieved directly from ACLED API via <span style="font-family:var(--en);">scripts/acled_crawler.py</span>, covering July 2010 (MONUSCO establishment) to present, ensuring traceable real data.</li>';
+    md+='<li><b>Local Database</b>: <span style="font-family:var(--en);">data/conflict_db.json</span> &mdash; local conflict database written by the crawler; <span style="font-family:var(--en);">data/update_log.json</span> &mdash; daily update log.</li>';
+    md+='<li><b>Verification Status</b>: Each event is labeled with verification status (Verified/Unverified), with transparent and traceable data sources.</li>';
+  }
   md+='</ul>';
 
-  // Section 3: All crawled conflict info by year
-  md+='<h4>三、冲突事件档案（按年份归档 / Archival Records by Year）</h4>';
-  md+='<p style="font-size:10.5px;color:var(--ink3);">共 <b>'+allIncidents.length+'</b> 条事件记录。以下为该系统中所有爬取的冲突原始数据，按年份分类展示。</p>';
+  // Section 3: Archival Records — card-based layout
+  md+='<h4>'+t('moreInfo.section3')+'</h4>';
+  md+='<p style="font-size:10.5px;color:var(--ink3);">'+t('moreInfo.totalRecords').replace('{n}',allIncidents.length)+'</p>';
 
   years.forEach(function(yr){
     var events=byYear[yr];
-    md+='<h5 class="md-year">'+yr+' 年（'+events.length+' 条）</h5>';
-    md+='<div class="md-table-wrap"><table class="md-table"><thead><tr><th>日期</th><th>省份</th><th>事件标题</th><th>类型</th><th>等级</th><th>死亡</th><th>行为体</th><th>来源</th><th>验证</th></tr></thead><tbody>';
+    md+='<h5 class="md-year">'+yr+t('moreInfo.yearLabel')+events.length+t('moreInfo.yearLabel2')+'</h5>';
+
+    // Sort by date descending within year
     events.sort(function(a,b){return b.date.localeCompare(a.date);}).forEach(function(e){
-      var typeZh=(CONFLICT_TYPES[e.type]||{}).zh||e.type;
-      var sevZh=(SEVERITY_LEVELS[e.severity]||{}).zh||e.severity;
-      md+='<tr><td style="font-family:var(--en);white-space:nowrap;">'+e.date+'</td><td>'+(DRC_PROVINCES[e.province]||{}).zh||e.province+'</td><td>'+e.title+'</td><td>'+typeZh+'</td><td>'+sevZh+'</td><td style="font-family:var(--en);text-align:right;">'+(e.fatalities||0)+'</td><td>'+e.actor1+' vs '+e.actor2+'</td><td style="font-family:var(--en);">'+e.source+'</td><td>'+(e.verified?'已验证':'待验证')+'</td></tr>';
+      var loc=localizeEvent(e);
+      var typeName=getConflictTypeName(e.type);
+      var provName=getProvinceDisplayName(e.province);
+      var provEn=DRC_PROVINCES[e.province]?DRC_PROVINCES[e.province].en:(e.province||'');
+      var cityName=e.city&&e.city!=='Unknown'?e.city:'';
+      var locationText=cityName?cityName+', '+provName:(provName+' / '+provEn);
+      var tc=CONFLICT_TYPES[e.type];
+      // One-sentence description: take first sentence of localized desc
+      var oneLiner=loc.desc.split(/[。.]/)[0];
+      if(oneLiner&&oneLiner.length<loc.desc.length)oneLiner+=(isZh?'。':'.');
+
+      md+='<div class="evt-card">'+
+        '<div class="ec-head">'+
+          '<span class="ec-date">'+e.date+'</span>'+
+          '<span class="ec-location">'+locationText+'</span>'+
+        '</div>'+
+        '<div class="ec-actors">'+
+          '<span class="ec-actor-line">'+e.actor1+'</span>'+
+          '<span class="ec-vs">vs</span>'+
+          '<span class="ec-actor-line">'+e.actor2+'</span>'+
+        '</div>'+
+        '<span class="ec-type" style="background:'+tc.color+';">'+typeName+'</span>'+
+        '<div class="ec-desc">'+oneLiner+'</div>'+
+      '</div>';
     });
-    md+='</tbody></table></div>';
   });
 
   md+='</div>';
@@ -421,6 +494,14 @@ function closeMoreInfo(){
   document.getElementById("moreInfoOverlay").classList.remove("open");
   document.getElementById("moreInfoModal").classList.remove("open");
 }
+
+// Expose so i18n can re-render the modal on language switch
+function updateMoreInfoModal(){
+  if(document.getElementById("moreInfoOverlay").classList.contains("open")){
+    showMoreInfo();
+  }
+}
+window.updateMoreInfoModal=updateMoreInfoModal;
 
 // Globals
 window.openDrawer=openDrawer;

@@ -12,10 +12,10 @@ const CONFLICT_TYPES = {
 
 /* --- 严重等级 --- */
 const SEVERITY_LEVELS = {
-  "critical": {zh:"严重",   size:14, color:"#8b2020", weight:4},
-  "high":     {zh:"高",     size:10, color:"#a0522d", weight:3},
-  "medium":   {zh:"中等",   size:7,  color:"#b8860b", weight:2},
-  "low":      {zh:"低",     size:5,  color:"#6b8e6b", weight:1}
+  "critical": {zh:"严重",   en:"Critical", size:14, color:"#8b2020", weight:4},
+  "high":     {zh:"高",     en:"High",     size:10, color:"#a0522d", weight:3},
+  "medium":   {zh:"中等",   en:"Medium",   size:7,  color:"#b8860b", weight:2},
+  "low":      {zh:"低",     en:"Low",      size:5,  color:"#6b8e6b", weight:1}
 };
 
 /* --- 刚果(金)26省（中英文） --- */

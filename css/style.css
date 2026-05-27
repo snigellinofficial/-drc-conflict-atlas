@@ -85,6 +85,17 @@ header::after{
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--red);animation:blink 2.5s infinite;margin-right:6px;display:inline-block;}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 
+/* Language toggle */
+.lang-toggle{display:flex;align-items:center;gap:1px;margin-left:8px;}
+.lang-btn{
+  font-family:var(--display);font-size:12px;font-weight:700;
+  padding:3px 9px;background:transparent;border:1.5px solid transparent;
+  border-radius:2px;color:var(--ink3);cursor:pointer;transition:all .2s;
+}
+.lang-btn:hover{color:var(--ink);border-color:var(--border2);}
+.lang-btn.active{color:var(--red);border-color:var(--red);background:rgba(139,0,0,.06);}
+.lang-div{font-family:var(--en);font-size:10px;color:var(--border2);margin:0 2px;}
+
 /* =====================================================================
    SUB-PANEL BACK BUTTON
    ===================================================================== */
@@ -444,16 +455,37 @@ header::after{
 }
 .sp-text{font-size:13.5px;line-height:2;color:var(--ink);font-family:var(--zh);}
 .sp-text p{margin-bottom:16px;}
-.sp-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:16px;font-family:var(--zh);}
+.sp-table{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:16px;font-family:var(--zh);}
 .sp-table th{
   text-align:left;padding:9px 14px;font-size:11px;letter-spacing:.05em;
   color:var(--white);border-bottom:2px solid var(--ink);background:var(--ink);font-family:var(--zh);font-weight:600;
 }
 .sp-table td{
   padding:8px 14px;border-bottom:1px solid var(--hair);
-  font-family:var(--en);font-size:12px;color:var(--ink2);
+  font-family:var(--en);font-size:11px;color:var(--ink2);
 }
 .sp-table tr:hover td{background:var(--bg2);}
+
+/* Compact province summary table */
+.sp-table-province{font-size:11px;}
+.sp-table-province td{padding:6px 10px;font-size:10.5px;}
+.sp-table-province th{padding:7px 10px;font-size:10px;}
+
+/* Actor frequency chips in province view */
+.actor-chip{
+  display:inline-block;font-size:10px;padding:2px 7px;margin:1px 2px;
+  background:var(--bg2);border:1px solid var(--border2);border-radius:2px;white-space:nowrap;
+}
+.actor-chip .chip-count{
+  font-family:var(--en);font-size:9px;color:var(--red2);font-weight:700;margin-left:2px;
+}
+.actor-expand-btn{
+  font-size:10px;color:var(--accent);cursor:pointer;font-weight:600;transition:color .2s;
+  display:inline-block;margin:1px 2px;
+}
+.actor-expand-btn:hover{color:var(--red);}
+.actor-hidden{display:none;}
+
 .sp-badge{
   display:inline-block;padding:4px 12px;border-radius:2px;font-size:11px;font-weight:700;font-family:var(--zh);
 }
@@ -647,6 +679,49 @@ header::after{
 }
 .md-table tbody tr:nth-child(even){background:var(--bg2);}
 .md-table tbody tr:hover{background:var(--bg3);}
+
+/* Event cards in more-info (archival records) */
+.evt-card{
+  background:var(--white);
+  border:1px solid var(--border2);
+  border-left:3px solid var(--ink);
+  border-radius:2px;
+  padding:10px 14px;
+  margin-bottom:9px;
+  font-size:11.5px;
+  line-height:1.6;
+}
+.evt-card .ec-head{
+  display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;
+  gap:8px;margin-bottom:6px;
+}
+.evt-card .ec-date{
+  font-family:var(--en);font-weight:700;font-size:12px;color:var(--ink);
+  white-space:nowrap;
+}
+.evt-card .ec-location{
+  font-size:11px;color:var(--ink3);text-align:right;
+}
+.evt-card .ec-actors{
+  background:var(--bg2);border:1px solid var(--hair);
+  border-radius:2px;padding:5px 10px;margin-bottom:6px;
+  font-family:var(--en);font-size:11px;color:var(--ink);
+  line-height:1.5;
+}
+.evt-card .ec-actors .ec-actor-line{
+  display:block;
+}
+.evt-card .ec-actors .ec-vs{
+  color:var(--ink3);font-size:10px;font-style:italic;
+}
+.evt-card .ec-type{
+  display:inline-block;font-size:10.5px;font-weight:600;
+  padding:2px 8px;border-radius:2px;color:#fff;
+  margin-bottom:5px;
+}
+.evt-card .ec-desc{
+  font-size:11.5px;color:var(--ink);line-height:1.7;
+}
 
 /* =====================================================================
    CHART
