@@ -76,8 +76,9 @@ function openDrawer(id){
 }
 
 function closeDrawer(){
-  if(window.popDrawer){
-    popDrawer();
+  // Close ALL — clear drawer stack and close overlay
+  if(window.closeAllDrawers){
+    closeAllDrawers();
   }else{
     document.getElementById("subOverlay").classList.remove("open");
     document.getElementById("subPanel").classList.remove("open");
@@ -92,7 +93,8 @@ document.addEventListener("DOMContentLoaded",function(){
   var backBtn=document.getElementById("subPanelBack");
   if(backBtn)backBtn.onclick=function(e){
     e.stopPropagation();
-    closeDrawer();
+    if(window.popDrawer)popDrawer();
+    else closeDrawer();
   };
   var overlay=document.getElementById("subOverlay");
   if(overlay)overlay.onclick=closeDrawer;

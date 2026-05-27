@@ -13,9 +13,8 @@ let timeRange={start:"",end:""};
 
 function getDefaultTimeRange(){
   var now=new Date();
-  var d=new Date(now.getFullYear(), now.getMonth()-3, now.getDate());
   var end=now.toISOString().slice(0,10);
-  var start=d.toISOString().slice(0,10);
+  var start="2020-01-01";
   return {start:start,end:end};
 }
 
@@ -53,9 +52,9 @@ function initMap(){
   });
   map.addLayer(markerCluster);
 
-  // Scale bar
+  // Scale bar — positioned above legend
   L.control.scale({
-    metric:true, imperial:false, maxWidth:180, position:'bottomright',
+    metric:true, imperial:false, maxWidth:180, position:'bottomleft',
     updateWhenIdle:true
   }).addTo(map);
 
@@ -105,7 +104,7 @@ async function loadProvinceLayer(){
         // Hover highlight
         layer.on("mouseover",function(){
           if(selectedProvince===name)return;
-          layer.setStyle({fillOpacity:0.28,weight:2.8,color:"#2a1000"});
+          layer.setStyle({fillOpacity:0.32,weight:2.0,color:"#2a1000"});
           layer.bringToFront();
         });
         layer.on("mouseout",function(){
@@ -139,11 +138,11 @@ function getProvinceStyle(name){
     : activeIncidents.some(function(d){return d.province===name;});
   var isSelected=selectedProvince===name;
   return {
-    color: isSelected ? "#1a0a00" : (hasIncidents ? "#5a0000" : "#8a7a6a"),
-    weight: isSelected ? 2.8 : 1.5,
-    fillColor: isSelected ? "#d4a08a" : (hasIncidents ? "#8b2020" : "#e8dcc8"),
-    fillOpacity: isSelected ? 0.42 : (hasIncidents ? 0.24 : 0.06),
-    opacity: isSelected ? 1.0 : 0.78,
+    color: isSelected ? "#1a0a00" : (hasIncidents ? "#5a0000" : "#9a8a7a"),
+    weight: isSelected ? 2.8 : (hasIncidents ? 1.0 : 0.6),
+    fillColor: isSelected ? "#d4a08a" : (hasIncidents ? "#8b2020" : "#e0d8c8"),
+    fillOpacity: isSelected ? 0.42 : (hasIncidents ? 0.22 : 0.13),
+    opacity: isSelected ? 1.0 : 0.72,
     dashArray: null
   };
 }
@@ -164,8 +163,8 @@ function updateLabelVisibility(){
   provinceLabelsGroup.clearLayers();
   var zoom=map.getZoom();
 
-  // Province labels at zoom >= 8 (~1:500,000 scale)
-  if(zoom>=8&&provinceData){
+  // Province labels at zoom >= 9 (~1:250,000 scale) — avoids overlap
+  if(zoom>=9&&provinceData){
     provinceData.features.forEach(function(feat){
       var name=feat.properties.name;
       var pInfo=DRC_PROVINCES[name];
@@ -195,8 +194,8 @@ function updateCityVisibility(){
   cityLabelsGroup.clearLayers();
   var zoom=map.getZoom();
 
-  // City labels at zoom >= 9 (~1:200,000 scale)
-  if(zoom<9)return;
+  // City labels at zoom >= 10 (~1:100,000 scale) — avoids overlap with province labels
+  if(zoom<10)return;
 
   // Collect unique cities from active incidents
   var seen={};
@@ -265,11 +264,14 @@ function initTimeSlider(){
     wrap.className="time-slider-wrap";
     wrap.innerHTML=
       '<div class="ts-label">时段 / Period</div>'+
-      '<div class="ts-row">'+
-        '<button class="ts-btn-preset" id="tsAllBtn" title="选择全部时段">全部</button>'+
-        '<button class="ts-btn-preset" id="ts3mBtn" title="最近三个月">3月</button>'+
+      '<div class="ts-row" style="flex-wrap:wrap;">'+
+        '<button class="ts-btn-preset" id="ts1mBtn" title="最近一个月">1个月</button>'+
+        '<button class="ts-btn-preset" id="ts3mBtn" title="最近三个月">3个月</button>'+
+        '<button class="ts-btn-preset" id="ts6mBtn" title="最近六个月">6个月</button>'+
         '<button class="ts-btn-preset" id="ts1yBtn" title="最近一年">1年</button>'+
+        '<button class="ts-btn-preset" id="ts3yBtn" title="最近三年">3年</button>'+
         '<button class="ts-btn-preset" id="ts5yBtn" title="最近五年">5年</button>'+
+        '<button class="ts-btn-preset" id="tsAllBtn" title="选择全部时段">全部</button>'+
       '</div>'+
       '<div class="ts-row ts-dates">'+
         '<input type="date" id="tsDateFrom" class="ts-date" />'+
@@ -285,12 +287,19 @@ function initTimeSlider(){
     document.getElementById("tsDateTo").value=timeRange.end;
 
     // Preset buttons
-    document.getElementById("tsAllBtn").addEventListener("click",function(){
-      setTimeRange("2020-01-01","2026-12-31");
+    document.getElementById("ts1mBtn").addEventListener("click",function(){
+      var now=new Date();
+      var d=new Date(now.getFullYear(),now.getMonth()-1,now.getDate());
+      setTimeRange(d.toISOString().slice(0,10),now.toISOString().slice(0,10));
     });
     document.getElementById("ts3mBtn").addEventListener("click",function(){
       var now=new Date();
       var d=new Date(now.getFullYear(),now.getMonth()-3,now.getDate());
+      setTimeRange(d.toISOString().slice(0,10),now.toISOString().slice(0,10));
+    });
+    document.getElementById("ts6mBtn").addEventListener("click",function(){
+      var now=new Date();
+      var d=new Date(now.getFullYear(),now.getMonth()-6,now.getDate());
       setTimeRange(d.toISOString().slice(0,10),now.toISOString().slice(0,10));
     });
     document.getElementById("ts1yBtn").addEventListener("click",function(){
@@ -298,10 +307,18 @@ function initTimeSlider(){
       var d=new Date(now.getFullYear()-1,now.getMonth(),now.getDate());
       setTimeRange(d.toISOString().slice(0,10),now.toISOString().slice(0,10));
     });
+    document.getElementById("ts3yBtn").addEventListener("click",function(){
+      var now=new Date();
+      var d=new Date(now.getFullYear()-3,now.getMonth(),now.getDate());
+      setTimeRange(d.toISOString().slice(0,10),now.toISOString().slice(0,10));
+    });
     document.getElementById("ts5yBtn").addEventListener("click",function(){
       var now=new Date();
       var d=new Date(now.getFullYear()-5,now.getMonth(),now.getDate());
       setTimeRange(d.toISOString().slice(0,10),now.toISOString().slice(0,10));
+    });
+    document.getElementById("tsAllBtn").addEventListener("click",function(){
+      setTimeRange("2020-01-01",new Date().toISOString().slice(0,10));
     });
 
     // Date input change → sync
@@ -407,6 +424,15 @@ function popDrawer(){
   }
 }
 
+function closeAllDrawers(){
+  drawerStack=[];
+  var overlay=document.getElementById("subOverlay");
+  var panel=document.getElementById("subPanel");
+  overlay.classList.remove("open");
+  panel.classList.remove("open");
+  updateBackButton();
+}
+
 function updateBackButton(){
   var btn=document.getElementById("subPanelBack");
   if(!btn)return;
@@ -478,7 +504,8 @@ function buildMapLegend(){
     Object.entries(CONFLICT_TYPES).map(function(e){return '<div class="leg-row"><span class="leg-dot" style="background:'+e[1].color+'"></span>'+e[1].zh+'</div>';}).join("")+
     '<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--hair);font-size:10px;color:var(--ink3);line-height:1.6;">'+
     '<b>点击省份</b> → 查看省份概况<br>点击标记 → 查看事件详情<br>'+
-    '<span style="display:inline-block;width:10px;height:10px;border:2px solid #5a0000;background:rgba(139,32,32,.24);margin-right:4px;"></span> 时段内有冲突 '+
+    '缩放至9级 → 显示省份名称<br>缩放至10级 → 显示城市名称<br>'+
+    '<span style="display:inline-block;width:10px;height:10px;border:2px solid #5a0000;background:rgba(139,32,32,.22);margin-right:4px;"></span> 时段内有冲突 '+
     '<span style="display:inline-block;width:10px;height:10px;border:2.5px solid #1a0a00;background:rgba(212,160,138,.5);margin-right:4px;"></span> 已选省份</div>';
   document.querySelector(".map-wrap").appendChild(div);
 }

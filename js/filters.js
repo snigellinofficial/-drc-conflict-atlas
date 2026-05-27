@@ -107,12 +107,8 @@ function showActorBrief(actorName){
     showToast('"'+actorName+'" 暂无详细档案');
     return;
   }
-  var overlay=document.getElementById("subOverlay");
-  var panel=document.getElementById("subPanel");
-  var body=document.getElementById("subPanelBody");
-  var title=document.getElementById("subPanelTitle");
-  title.innerHTML='<span style="color:var(--red);">&#9878;</span> '+profile.zh;
-  body.innerHTML=`
+  var titleHtml='<span style="color:var(--red);">&#9878;</span> '+profile.zh;
+  var bodyHtml=`
     <div class="sp-section">
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
         <span class="sp-badge" style="background:var(--ink);color:#fff;">${profile.type}</span>
@@ -139,8 +135,18 @@ function showActorBrief(actorName){
       </p>
     </div>
   `;
-  overlay.classList.add("open");
-  panel.classList.add("open");
+  if(window.pushDrawer){
+    pushDrawer(titleHtml, bodyHtml, 'actor-'+actorName);
+  }else{
+    var overlay=document.getElementById("subOverlay");
+    var panel=document.getElementById("subPanel");
+    var body=document.getElementById("subPanelBody");
+    var title=document.getElementById("subPanelTitle");
+    title.innerHTML=titleHtml;
+    body.innerHTML=bodyHtml;
+    overlay.classList.add("open");
+    panel.classList.add("open");
+  }
 }
 
 // === Init filter UI ===

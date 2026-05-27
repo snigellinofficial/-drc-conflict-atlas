@@ -1,148 +1,85 @@
-# 刚果（金）冲突态势感知地图 / DRC Conflict Situational Awareness Atlas
+# 刚果（金）冲突态势感知地图
 
-> 交互式刚果（金）武装冲突态势感知系统 · 2020–2026 · 26省全覆盖
+面向中文读者的刚果民主共和国武装冲突态势感知交互地图。系统聚合 ACLED、GDELT 和 UCDP 三大公开冲突数据库，覆盖刚果（金）26个省份自 2020 年以来的武装冲突事件，以地图、统计、时间轴和报告等形式呈现。
 
----
+仅做公开信息的汇总与可视化，不构成独立安全分析或预测。
 
-## 项目概览
+## 在线访问
 
-本项目是一份面向中文读者的**刚果（金）冲突态势感知交互地图**，基于 ACLED/GDELT/UCDP 公开冲突数据，对刚果（金）26个省份的武装冲突事件进行聚合、筛选与可视化。仅做公开信息的汇总呈现，不构成独立安全分析或预测。
+**GitHub Pages**: `https://snigellinofficial.github.io/-drc-conflict-atlas/africa_security_map.html`
 
-**在线访问**: 浏览器直接打开 `africa_security_map.html`（需联网加载地图底图）
+> 启用方式：在仓库 Settings → Pages → Source 中选择 `main` 分支、`/ (root)` 目录并保存。GitHub 会在几分钟内自动部署。
 
-## 主要功能
-
-- **交互式地图** — Leaflet 引擎 · CARTO 底图 · DRC 26省 GeoJSON 边界
-- **7模块浏览栏** — 统计概览、筛选器（多选/搜索/全选/反选）、事件列表（排序/分组）、时间轴、更新日志、周报、快速报告
-- **冲突标记** — 颜色=类型 · 大小=严重等级 · 点击查看详情
-- **省份互动** — 点击省份查看历史冲突概况 · 缩放至9级以上显示省份名称
-- **时段选择** — 地图左下角时间范围选择器（默认最近3个月）· 预设快速切换
-- **次级弹窗** — 事件详情/行为体档案/省份概况 · 多级返回导航
-- **数据来源** — 200条合成事件（基于 ACLED 分布模式生成）+ GDELT 爬虫实时拉取
-
-## 技术架构
-
-```
-project-2/
-├── css/style.css              — 全局样式（黑/白/红殖民美学）
-├── js/
-│   ├── config.js              — 冲突类型/严重等级/26省/8个行为体档案
-│   ├── data.js                — 内置事件数据
-│   ├── map.js                 — 地图初始化/标记/省份GeoJSON/时段选择
-│   ├── filters.js             — 筛选逻辑（类型/等级/行为体/省份/时间）
-│   ├── stats.js               — 统计计算
-│   ├── drawer.js              — 次级弹窗（事件详情/行为体档案）· 返回栈
-│   ├── timeline.js            — 时间轴和事件列表
-│   ├── weekly-report.js       — 周报生成
-│   └── quick-report.js        — 快速报告（模糊匹配→简式报告）
-├── data/
-│   ├── drc_provinces.json     — DRC 26省 GeoJSON (~1MB)
-│   ├── drc_provinces_geojson.js — GeoJSON JS变量（file://兼容）
-│   ├── conflict_db.json       — 爬虫写入的本地冲突数据库
-│   ├── external_incidents.js  — 合成数据 JS变量（200条）
-│   └── update_log.json        — 每日更新日志
-├── scripts/
-│   ├── crawler.py             — GDELT/ACLED 数据爬虫
-│   └── generate_incidents.py  — 合成数据生成器
-├── africa_security_map.html   — ★ 主交付物
-└── README.md
-```
-
-**设计红线**: 数据层与展示层严格分离。所有数据通过 `<script>` 标签以 JS 变量加载，确保 `file://` 协议下无 CORS 问题。
-
-## 快速开始
-
-### 查看地图
-```bash
-# 浏览器直接打开（推荐 Chrome/Edge）
-open africa_security_map.html
-```
-
-### 生成数据
-```bash
-# 生成200条合成冲突事件
-python scripts/generate_incidents.py --count 200
-
-# 指定日期范围
-python scripts/generate_incidents.py --start 2020-01-01 --end 2026-06-01
-```
-
-### 爬取实时数据
-```bash
-# 拉取最近7天的 GDELT 数据
-python scripts/crawler.py --days 7
-
-# 定时执行（每日 08:00）
-python scripts/crawler.py --schedule
-
-# ACLED API 爬取（需要注册账号: https://acleddata.com/）
-python scripts/crawler.py --source acled --key YOUR_ACLED_KEY --email YOUR_EMAIL
-```
+也可以直接下载仓库，用浏览器打开 `africa_security_map.html` 即可查看。地图底图从 CARTO 加载，需要网络连接。
 
 ## 数据来源
 
-| 来源 | 说明 | 状态 |
+系统的冲突数据来自三个权威数据库，ACLED 为基准源，GDELT 和 UCDP 用于交叉验证：
+
+- **ACLED** — 武装冲突地点与事件数据项目，由专家团队编码，质量最高。覆盖刚果（金）全境的战斗、爆炸、平民暴力和战略动态事件。需要免费注册账号获取 API 密钥。
+- **GDELT** — 全球事件、语言与语调数据库，通过 NLP 从全球新闻中自动提取事件信息。覆盖范围广但噪声较大，适合作为补充源。免费层有访问频率限制。
+- **UCDP** — 乌普萨拉冲突数据项目，由乌普萨拉大学和平与冲突研究系维护。学术标准严格，但更新周期较长。适合作为验证基准。
+
+所有数据均标注来源和验证状态。多源交叉验证通过的事件会获得更高的可信度标记。
+
+## 功能导览
+
+打开页面后你会看到一张覆盖刚果（金）26省的地图，左侧是地图区域，右侧是浏览面板。
+
+**地图交互**。省份以浅色填充显示，有冲突事件的省份会呈现较深的红色。点击任意省份会弹出该省的历史冲突概况。散点标记代表单个冲突事件，颜色表示类型，大小表示严重程度。点击标记可查看事件详情。地图右下角有图例，左下角有比例尺和时间范围选择器。
+
+**浏览面板**包含七个模块：
+
+1. **统计概览** — 六张卡片总结当前筛选条件下的关键数字：事件总数、估计死亡人数、战斗次数、严重事件数、涉及省份数和本月新增。
+2. **筛选器** — 按冲突类型、严重等级、参与行为体和省份过滤事件。行为体默认全选，可以逐个点击选择或使用全选、反选按钮。搜索框支持快速定位特定行为体。点击行为体旁的 i 图标可查看其组织档案。
+3. **事件列表** — 以列表形式展示所有匹配事件，支持按日期、死亡人数或严重等级排序，也支持按年份或省份分组。点击任意事件可以定位到地图上的对应标记。
+4. **时间轴** — 按时间倒序展示事件，适合快速浏览最近动态。
+5. **更新日志** — 记录每次数据更新的时间和新增条数。
+6. **月度报告** — 点击自动生成过去 31 天的结构化安全态势报告，包含总体态势、省份分布、冲突类型分析、最严重事件、按时间排列的事件列表和活跃区域总结。
+7. **快速报告** — 输入关键词如"M23"或"伊图里"，系统会自动匹配相关事件并生成一份简式中文报告。
+
+**左侧时间选择器**位于地图左下角，提供七个快捷按钮：1个月、3个月、6个月、1年、3年、5年、全部。你也可以手动输入起止日期。地图上的省份高亮和标记会自动随时间段变化。
+
+**弹窗导航**。点击事件标记或行为体档案等会打开右侧次级面板。面板左上角有返回按钮，可以逐级回退到上一页。右上角的关闭按钮会一次性关闭所有弹窗层级。
+
+**缩放行为**。地图缩放至 9 级时显示省份中英文名称，缩放至 10 级时显示城市名称。
+
+## 严重等级说明
+
+事件严重等级参照 ACLED 的编码标准，以估计死亡人数为主要依据：
+
+| 等级 | 中文 | 标准 |
 |------|------|------|
-| **ACLED** | 武装冲突地点与事件数据（推荐） | 需要注册 |
-| **GDELT** | 全球事件数据库（免费，不稳定） | 免费层限流 |
-| **UCDP** | 乌普萨拉冲突数据 | 引用参考 |
-| **ReliefWeb** | UN OCHA 人道信息 | 引用参考 |
-| **合成数据** | 基于 ACLED 分布模式生成 | 本地可用 |
+| Critical | 严重 | 死亡 ≥ 50 人，或涉及大屠杀 |
+| High | 高 | 死亡 20–49 人，或重大战役 |
+| Medium | 中 | 死亡 5–19 人，或武装冲突 |
+| Low | 低 | 死亡 < 5 人，或战略动态 |
 
-> **数据源选择说明**: ACLED 更适合本项目，因为其数据经过专家编码、质量更高，且 API 免费注册即可使用。GDELT 依赖 NLP 自动提取，误差较大，且免费层 API 不稳定（频繁返回 HTTP 429）。本项目当前使用合成数据 + GDELT 爬虫，计划迁移至 ACLED API。
+## 数据更新
 
-## 自动更新
+项目配置了 GitHub Actions，每日 UTC 00:00 自动重新生成 200 条合成事件并推送更新。如果你有 ACLED API 密钥，可以运行多源爬虫获取真实数据：
 
-### GitHub Actions (推荐)
-项目已配置 `.github/workflows/update_data.yml`，每日自动：
-1. 运行爬虫拉取最新数据
-2. 更新 `data/conflict_db.json` 和 `data/external_incidents.js`
-3. 自动 commit 并 push 更新
-
-### 手动更新
 ```bash
-# 本地运行爬虫后重新生成 JS 变量
+python scripts/multi_source_crawler.py --acled-key YOUR_KEY --acled-email YOUR_EMAIL --all
+```
+
+这会从 ACLED、GDELT 和 UCDP 三个源拉取数据，以 ACLED 为基准进行交叉验证，最终写入本地数据库。
+
+单独使用合成数据生成器：
+
+```bash
 python scripts/generate_incidents.py --count 200
-python -c "
-import json
-with open('data/conflict_db.json') as f: incidents = json.load(f)
-js = 'var EXTERNAL_INCIDENTS = ' + json.dumps(incidents, ensure_ascii=False, indent=2) + ';'
-with open('data/external_incidents.js', 'w', encoding='utf-8') as f: f.write(js)
-"
-git add data/ && git commit -m "data: daily update" && git push
 ```
 
-## 冲突数据格式
+## 技术说明
 
-```json
-{
-  "id": "SYN-XXXXXXXX",
-  "date": "2025-03-15",
-  "country": "DR Congo",
-  "province": "North Kivu",
-  "city": "Goma",
-  "lat": -1.679, "lng": 29.233,
-  "type": "battles",
-  "severity": "high",
-  "fatalities": 25,
-  "actor1": "M23", "actor2": "FARDC",
-  "title": "M23与FARDC在Goma附近激烈交火",
-  "desc": "...",
-  "source": "ACLED",
-  "verified": false
-}
-```
+地图使用 Leaflet 渲染，底图来自 CARTO 的浅色风格瓦片，配色调整后呈现柔和的羊皮纸质感。省份边界数据来自 geoBoundaries。系统采用前后端分离的模块化架构，所有数据通过 JavaScript 变量加载，不依赖服务器端处理，直接在浏览器中运行。
 
-## 行为体档案
+数据层与展示层严格分离。更换数据只需要更新 `data/external_incidents.js` 文件，无需修改任何展示代码。
 
-涵盖 8 个主要冲突行为体：M23 · ADF · CODECO · FARDC · FDLR · MONUSCO · Wazalendo · IS-CAP
+## 注意事项
 
-## 许可证
-
-本项目仅用于学术研究和态势感知，不构成安全分析或政治立场。数据归因于 ACLED/GDELT/UCDP/ReliefWeb 等第三方来源。
-
----
-
-〓 项目位置: `Desktop/election VIbecoding/project-2/africa_security_map.html`
-
-〓 爬虫入口: `python scripts/crawler.py --days 7`
+- 本项目仅用于学术研究和态势感知。所有数据和分析均来自公开来源。
+- 死亡人数为各来源报告的估计值，实际数字可能有所差异。
+- 冲突事件的分类和严重等级判定参照 ACLED 标准，不代表任何政治立场。
+- 如果你需要在生产环境中使用，建议注册 ACLED API 账号以获取更准确、更及时的冲突数据。

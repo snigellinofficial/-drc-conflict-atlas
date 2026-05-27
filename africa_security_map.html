@@ -222,8 +222,9 @@
 <div class="sub-panel-overlay" id="subOverlay"></div>
 <div class="sub-panel" id="subPanel">
   <div class="sub-panel-header">
+    <button class="sub-panel-back" id="subPanelBack" title="返回上一级">&larr; 返回</button>
     <h3 id="subPanelTitle">详情</h3>
-    <button class="sub-panel-close" id="subPanelClose">&times;</button>
+    <button class="sub-panel-close" id="subPanelClose" title="关闭全部">&times;</button>
   </div>
   <div class="sub-panel-body" id="subPanelBody"></div>
 </div>
@@ -358,6 +359,9 @@ document.addEventListener("DOMContentLoaded",init);
 // Globals
 window.openDrawer=openDrawer;
 window.closeDrawer=closeDrawer;
+window.pushDrawer=pushDrawer;
+window.popDrawer=popDrawer;
+window.closeAllDrawers=closeAllDrawers;
 window.applyFilters=applyFilters;
 window.resetFilters=resetFilters;
 window.generateWeeklyReport=generateWeeklyReport;

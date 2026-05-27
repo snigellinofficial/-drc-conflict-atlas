@@ -4,18 +4,16 @@
    ===================================================================== */
 
 function generateMonthlyReport(){
-  var overlay=document.getElementById("subOverlay");
-  var panel=document.getElementById("subPanel");
-  var body=document.getElementById("subPanelBody");
-  var title=document.getElementById("subPanelTitle");
-
-  title.innerHTML='月度报告生成中...';
-  body.innerHTML='<div style="text-align:center;padding:40px;"><span class="spinner"></span><p style="margin-top:12px;color:var(--muted);font-size:12px;">正在doublecheck数据并生成月度报告...</p></div>';
-  overlay.classList.add("open");
-  panel.classList.add("open");
+  pushDrawer(
+    '月度报告生成中...',
+    '<div style="text-align:center;padding:40px;"><span class="spinner"></span><p style="margin-top:12px;color:var(--muted);font-size:12px;">正在doublecheck数据并生成月度报告...</p></div>',
+    'monthly-report'
+  );
 
   setTimeout(function(){
     var report=buildMonthlyReport();
+    var title=document.getElementById("subPanelTitle");
+    var body=document.getElementById("subPanelBody");
     title.innerHTML='月度安全态势报告';
     body.innerHTML=report;
   },600);
